@@ -72,35 +72,12 @@
             </section>
 
             <section class="card">
-              <h2>Pressão dos pneus</h2>
-              <div class="tires">
-                <div class="tire-item">
-                  <label for="pneu1">Pneu Dianteiro Esquerdo</label>
-                  <input id="pneu1" type="number" min="0" max="100" step="0.1" placeholder="PSI - Dianteiro Esquerdo" />
-                </div>
-                <div class="tire-item">
-                  <label for="pneu2">Pneu Dianteiro Direito</label>
-                  <input id="pneu2" type="number" min="0" max="100" step="0.1" placeholder="PSI - Dianteiro Direito" />
-                </div>
-                <div class="tire-item">
-                  <label for="pneu3">Pneu Traseiro Esquerdo</label>
-                  <input id="pneu3" type="number" min="0" max="100" step="0.1" placeholder="PSI - Traseiro Esquerdo" />
-                </div>
-                <div class="tire-item">
-                  <label for="pneu4">Pneu Traseiro Direito</label>
-                  <input id="pneu4" type="number" min="0" max="100" step="0.1" placeholder="PSI - Traseiro Direito" />
-                </div>
-              </div>
-
-              <div id="statusPneus" class="status warning">Informe a pressão correta de cada pneu.</div>
-            </section>
-
-            <section class="card">
               <h2>Itens da inspeção</h2>
               <p class="muted-copy">Marque cada item como OK ou Irregular. Itens não avaliados permanecem pendentes.</p>
 
               <div class="category-tabs">
                 <button class="category-tab active" type="button" data-category="todos">Todos</button>
+                <button class="category-tab" type="button" data-category="pneus">Pneus</button>
                 <button class="category-tab" type="button" data-category="iluminacao">Iluminação e sinalização</button>
                 <button class="category-tab" type="button" data-category="freios">Freios</button>
                 <button class="category-tab" type="button" data-category="fluidos">Fluidos e motor</button>
@@ -109,15 +86,42 @@
               </div>
 
               <div class="category-block">
+                <div class="category-card" data-category="pneus">
+                  <div class="category-head">
+                    <h3 class="category-title"><span class="category-icon" aria-hidden="true">🛞</span>Pneus</h3>
+                    <span class="status-badge wait">Pendente</span>
+                  </div>
+                  <p class="muted-copy">Todos os pneus são itens críticos: pressão fora do limite bloqueia a circulação.</p>
+                  <div class="tires">
+                    <div class="tire-item" data-critical="true">
+                      <label for="pneu1">Dianteiro esquerdo</label>
+                      <input id="pneu1" type="number" min="0" max="100" step="0.1" placeholder="Pressão em PSI" />
+                    </div>
+                    <div class="tire-item" data-critical="true">
+                      <label for="pneu2">Dianteiro direito</label>
+                      <input id="pneu2" type="number" min="0" max="100" step="0.1" placeholder="Pressão em PSI" />
+                    </div>
+                    <div class="tire-item" data-critical="true">
+                      <label for="pneu3">Traseiro esquerdo</label>
+                      <input id="pneu3" type="number" min="0" max="100" step="0.1" placeholder="Pressão em PSI" />
+                    </div>
+                    <div class="tire-item" data-critical="true">
+                      <label for="pneu4">Traseiro direito</label>
+                      <input id="pneu4" type="number" min="0" max="100" step="0.1" placeholder="Pressão em PSI" />
+                    </div>
+                  </div>
+                  <div id="statusPneus" class="status warning">Informe a pressão correta de cada pneu.</div>
+                </div>
+
                 <div class="category-card" data-category="iluminacao">
                   <div class="category-head">
                     <h3 class="category-title"><span class="category-icon" aria-hidden="true">💡</span>Iluminação e sinalização</h3>
                     <span class="status-badge wait">Pendente</span>
                   </div>
                   <ul class="checklist">
-                    <li><input type="checkbox" class="item-obrigatorio" /> Faróis em bom funcionamento</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Lanternas e setas funcionando</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Luz de ré e painel operacionais</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Faróis em bom funcionamento</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Lanternas e setas funcionando</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Luz de ré e painel operacionais</li>
                   </ul>
                 </div>
 
@@ -127,9 +131,9 @@
                     <span class="status-badge wait">Pendente</span>
                   </div>
                   <ul class="checklist">
-                    <li><input type="checkbox" class="item-obrigatorio" /> Sistema de freios em bom estado</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Desgaste de disco/atar do freio dentro do aceitável</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Freio de estacionamento funcionando</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Sistema de freios em bom estado</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Desgaste de disco/atar do freio dentro do aceitável</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Freio de estacionamento funcionando</li>
                   </ul>
                 </div>
 
@@ -146,8 +150,8 @@
                   <div id="statusOleo" class="status warning">Selecione o nível de óleo verificado.</div>
 
                   <ul class="checklist" style="margin-top: 12px;">
-                    <li><input type="checkbox" class="item-obrigatorio" /> Fluido do motor em nível correto</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Motor sem ruídos ou falhas visíveis</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Fluido do motor em nível correto</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Motor sem ruídos ou falhas visíveis</li>
                   </ul>
                 </div>
 
@@ -157,8 +161,8 @@
                     <span class="status-badge wait">Pendente</span>
                   </div>
                   <ul class="checklist">
-                    <li><input type="checkbox" class="item-obrigatorio" /> Cinto de segurança em bom estado</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Espelhos e visibilidade adequados</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Cinto de segurança em bom estado</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Espelhos e visibilidade adequados</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Equipamentos de segurança disponíveis</li>
                   </ul>
                 </div>
@@ -169,7 +173,7 @@
                     <span class="status-badge wait">Pendente</span>
                   </div>
                   <ul class="checklist">
-                    <li><input type="checkbox" class="item-obrigatorio" /> Documento do veículo em ordem</li>
+                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Documento do veículo em ordem</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Visualização geral do veículo concluída</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Checagem de pneus concluída</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Checagem de óleo concluída</li>
@@ -186,7 +190,7 @@
               <h2>Dados da inspeção</h2>
               <div>
                 <label for="operador">Operador responsável</label>
-                <input id="operador" type="text" placeholder="Nome do operador" />
+                <input id="operador" type="text" placeholder="Preenchido pelo login" readonly />
               </div>
 
               <div class="summary">
@@ -198,11 +202,6 @@
                   <strong>Hora</strong>
                   <span id="horaAtual">--</span>
                 </div>
-              </div>
-
-              <div style="margin-top: 18px;">
-                <label for="observacoes">Observações</label>
-                <textarea id="observacoes" rows="5" placeholder="Descreva irregularidades, condições especiais ou observações relevantes."></textarea>
               </div>
 
             </section>
@@ -242,9 +241,12 @@
         <section class="card finalization-card">
           <h2>Finalização da inspeção</h2>
           <p>Revise os dados e os itens obrigatórios antes de concluir o checklist.</p>
+          <div style="margin-top: 18px;">
+            <label for="observacoes">Observações da inspeção</label>
+            <textarea id="observacoes" rows="4" placeholder="Registre irregularidades, ações necessárias ou outras observações relevantes."></textarea>
+          </div>
           <div class="floating-actions">
             <button id="btnSalvar" type="button" class="secondary-button">Salvar rascunho</button>
-            <button id="btnLimpar" type="button" class="secondary-button">Limpar formulário</button>
           </div>
           <button id="btnFinalizar" class="finalize-button" type="button">✓ Finalizar checklist</button>
           <div id="resultadoFinal" class="alert success" role="status">Checklist finalizado com sucesso.</div>

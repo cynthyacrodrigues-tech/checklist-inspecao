@@ -46,7 +46,6 @@ const resultadoFinal = document.getElementById('resultadoFinal');
 const erroFinal = document.getElementById('erroFinal');
 const btnFinalizar = document.getElementById('btnFinalizar');
 const btnSalvar = document.getElementById('btnSalvar');
-const btnLimpar = document.getElementById('btnLimpar');
 const totalInspecoes = document.getElementById('totalInspecoes');
 const totalIrregularidades = document.getElementById('totalIrregularidades');
 const totalEmAndamento = document.getElementById('totalEmAndamento');
@@ -74,7 +73,8 @@ const statusGeralTexto = document.getElementById('statusGeralTexto');
 
 function transformarItensInspecao() {
   document.querySelectorAll('.item-obrigatorio[type="checkbox"]').forEach((checkbox) => {
-    const textoItem = checkbox.parentElement.textContent.trim();
+    const linha = checkbox.closest('li');
+    const textoItem = obterRotuloItem(linha);
     const seletor = document.createElement('select');
     seletor.className = 'item-obrigatorio';
     seletor.setAttribute('aria-label', `Status do item: ${textoItem}`);
@@ -84,6 +84,7 @@ function transformarItensInspecao() {
       <option value="irregular">Irregular</option>
     `;
     checkbox.replaceWith(seletor);
+
   });
 }
 
@@ -91,6 +92,9 @@ transformarItensInspecao();
 
 function exibirAplicacao(usuario) {
   usuarioLogado.textContent = usuario;
+  operador.value = usuario;
+  operador.readOnly = true;
+  salvarEstadoFormulario();
   loginScreen.classList.add('hidden');
   appShell.classList.remove('hidden');
   welcomePanel.classList.remove('hidden');
@@ -119,9 +123,6 @@ loginForm.addEventListener('submit', (evento) => {
 
   sessionStorage.setItem('checklist-inspecao-usuario', usuario);
   loginErro.classList.remove('show');
-  if (!operador.value.trim()) {
-    operador.value = usuario;
-  }
   exibirAplicacao(usuario);
 });
 
@@ -204,31 +205,48 @@ function atualizarRelatorio() {
 
 function normalizarRegistros(registros) {
   return registros.map((registro) => {
-    if (Array.isArray(registro.itens)) return registro;
+    if (Array.isArray(registro.itens)) {
+      return {
+        ...registro,
+        itens: registro.itens.map((item) => ({
+          ...item,
+          critico: item.critico ?? itemEhCritico(item)
+        }))
+      };
+    }
     const itensPendentes = [
       ...['Pneu dianteiro esquerdo', 'Pneu dianteiro direito', 'Pneu traseiro esquerdo', 'Pneu traseiro direito']
         .map((item) => ({
           categoria: 'pneus',
           nomeCategoria: 'Pneus',
           item,
-          status: 'pendente'
+          status: 'pendente',
+          critico: true
         })),
       ...Array.from(categoryCards).flatMap((card) =>
         Array.from(card.querySelectorAll('li')).map((linha) => ({
           categoria: card.dataset.category,
           nomeCategoria: card.querySelector('h3').textContent.trim(),
           item: obterRotuloItem(linha),
-          status: 'pendente'
+          status: 'pendente',
+          critico: linha.dataset.critical === 'true'
         }))),
       {
         categoria: 'fluidos',
         nomeCategoria: 'Fluidos e motor',
         item: 'Nível de óleo',
-        status: 'pendente'
+        status: 'pendente',
+        critico: true
       }
     ];
     return { ...registro, itens: itensPendentes };
   });
+}
+
+function itemEhCritico(item) {
+  if (item.categoria === 'pneus' || item.item === 'Nível de óleo') return true;
+  return Array.from(document.querySelectorAll('li[data-critical="true"]'))
+    .some((linha) => obterRotuloItem(linha) === item.item);
 }
 
 function escaparHTML(valor) {
@@ -259,7 +277,8 @@ function veiculoEstaBloqueado(codigo, registros) {
   }
 
   const ultimaInspecao = registros.find((registro) => registro.veiculo === codigo);
-  return ultimaInspecao?.status === 'irregular';
+  if (typeof ultimaInspecao?.bloqueado === 'boolean') return ultimaInspecao.bloqueado;
+  return ultimaInspecao?.itens?.some((item) => item.critico && item.status === 'irregular') || false;
 }
 
 function renderizarStatusCirculacao(codigo, registros = criarDadosDemonstracao()) {
@@ -276,7 +295,8 @@ function criarDadosDemonstracao() {
       categoria,
       nomeCategoria: card.querySelector('h3').textContent.trim(),
       item: obterRotuloItem(linha),
-      status: 'ok'
+      status: 'ok',
+      critico: linha.dataset.critical === 'true'
     }));
   });
   const listaPneus = [
@@ -289,30 +309,31 @@ function criarDadosDemonstracao() {
   return [
     {
       veiculo: 'ABC1234', operador: 'João Silva', data: '06/10/2026',
-      status: 'ok', itens: [
-        ...listaPneus.map(([item]) => ({ categoria: 'pneus', nomeCategoria: 'Pneus', item, status: 'ok' })),
+      status: 'ok', bloqueado: false, itens: [
+        ...listaPneus.map(([item]) => ({ categoria: 'pneus', nomeCategoria: 'Pneus', item, status: 'ok', critico: true })),
         ...itensDoChecklist,
-        { categoria: 'fluidos', nomeCategoria: 'Fluidos e motor', item: 'Nível de óleo', status: 'ok' }
+        { categoria: 'fluidos', nomeCategoria: 'Fluidos e motor', item: 'Nível de óleo', status: 'ok', critico: true }
       ]
     },
     {
       veiculo: 'XYZ9876', operador: 'Maria Costa', data: '05/10/2026',
-      status: 'irregular', itens: [
+      status: 'irregular', bloqueado: true, itens: [
         ...listaPneus.map(([item], indice) => ({
           categoria: 'pneus', nomeCategoria: 'Pneus', item,
           status: indice === 2 ? 'irregular' : 'ok',
-          valor: indice === 2 ? '41 PSI' : ''
+          valor: indice === 2 ? '41 PSI' : '',
+          critico: true
         })),
         ...itensDoChecklist,
-        { categoria: 'fluidos', nomeCategoria: 'Fluidos e motor', item: 'Nível de óleo', status: 'irregular' }
+        { categoria: 'fluidos', nomeCategoria: 'Fluidos e motor', item: 'Nível de óleo', status: 'irregular', critico: true }
       ]
     },
     {
       veiculo: 'LMN4567', operador: 'Pedro Souza', data: '04/10/2026',
-      status: 'pendente', itens: [
-        ...listaPneus.map(([item]) => ({ categoria: 'pneus', nomeCategoria: 'Pneus', item, status: 'pendente' })),
+      status: 'pendente', bloqueado: false, itens: [
+        ...listaPneus.map(([item]) => ({ categoria: 'pneus', nomeCategoria: 'Pneus', item, status: 'pendente', critico: true })),
         ...itensDoChecklist.map((item) => ({ ...item, status: 'pendente' })),
-        { categoria: 'fluidos', nomeCategoria: 'Fluidos e motor', item: 'Nível de óleo', status: 'pendente' }
+        { categoria: 'fluidos', nomeCategoria: 'Fluidos e motor', item: 'Nível de óleo', status: 'pendente', critico: true }
       ]
     }
   ];
@@ -330,7 +351,6 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
       const acao = bloqueado ? 'Liberar para rodar' : 'Bloquear veículo';
       const classeAcao = bloqueado ? 'release' : 'block';
       const valor = item.valor ? ` (${escaparHTML(item.valor)})` : '';
-
       return `<tr>
         <td>${escaparHTML(registro.veiculo)}</td>
         <td>${escaparHTML(item.nomeCategoria)}</td>
@@ -370,10 +390,33 @@ function alternarStatusVeiculo(codigo, acao) {
 }
 
 function atualizarStatusCategoria(card) {
+  const badge = card.querySelector('.status-badge');
+  if (card.dataset.category === 'pneus') {
+    const codigo = numeroVeiculo.value.trim().toUpperCase();
+    const veiculo = veiculos[codigo];
+    const pressao = ['pneu1', 'pneu2', 'pneu3', 'pneu4']
+      .map((id) => document.getElementById(id).value);
+    const todosPreenchidos = pressao.every((valor) => valor !== '' && Number.isFinite(Number(valor)));
+    const algumaIrregular = veiculo && pressao.some((valor) => valor !== '' && (
+      Number(valor) < veiculo.pressaoMin || Number(valor) > veiculo.pressaoMax
+    ));
+
+    if (algumaIrregular) {
+      badge.textContent = 'Irregular';
+      badge.className = 'status-badge alert';
+    } else if (veiculo && todosPreenchidos) {
+      badge.textContent = 'OK';
+      badge.className = 'status-badge ok';
+    } else {
+      badge.textContent = 'Pendente';
+      badge.className = 'status-badge wait';
+    }
+    return;
+  }
+
   const itens = card.querySelectorAll('.item-obrigatorio');
   const total = itens.length;
   const valores = Array.from(itens).map((item) => item.value);
-  const badge = card.querySelector('.status-badge');
 
   const oleo = card.dataset.category === 'fluidos'
     ? document.querySelector('input[name="oleo"]:checked')?.value || 'pendente'
@@ -496,7 +539,9 @@ function coletarItensInspecao() {
       nomeCategoria: 'Pneus',
       item,
       valor: valor === null ? '' : `${valor} PSI`,
-      status: valor === null ? 'pendente' : dentroDoLimite ? 'ok' : 'irregular'
+      status: valor === null ? 'pendente' : dentroDoLimite ? 'ok' : 'irregular',
+      critico: true,
+      critico: true
     };
   });
   const oleo = document.querySelector('input[name="oleo"]:checked')?.value || '';
@@ -507,7 +552,9 @@ function coletarItensInspecao() {
       categoria,
       nomeCategoria,
       item: obterRotuloItem(seletor.parentElement),
-      status: seletor.value
+      status: seletor.value,
+      critico: seletor.closest('li')?.dataset.critical === 'true',
+      critico: seletor.closest('li')?.dataset.critical === 'true'
     }));
   });
 
@@ -518,7 +565,9 @@ function coletarItensInspecao() {
       categoria: 'fluidos',
       nomeCategoria: 'Fluidos e motor',
       item: 'Nível de óleo',
-      status: oleo === 'adequado' ? 'ok' : oleo === 'inadequado' ? 'irregular' : 'pendente'
+      status: oleo === 'adequado' ? 'ok' : oleo === 'inadequado' ? 'irregular' : 'pendente',
+      critico: true,
+      critico: true
     }
   ];
 }
@@ -565,27 +614,7 @@ function restaurarEstadoFormulario() {
   }
 }
 
-function limparFormulario() {
-  numeroVeiculo.value = '';
-  document.getElementById('pneu1').value = '';
-  document.getElementById('pneu2').value = '';
-  document.getElementById('pneu3').value = '';
-  document.getElementById('pneu4').value = '';
-  document.querySelectorAll('input[name="oleo"]').forEach((radio) => { radio.checked = false; });
-  operador.value = '';
-  observacoes.value = '';
-  document.querySelectorAll('.item-obrigatorio').forEach((item) => { item.value = 'pendente'; });
-  localStorage.removeItem(STORAGE_KEY);
-  veiculoInfo.classList.remove('show');
-  erroIdentificacao.classList.remove('show');
-  statusPneus.className = 'status warning';
-  statusOleo.className = 'status warning';
-  resultadoFinal.classList.remove('show');
-  erroFinal.classList.remove('show');
-  atualizarStatusCategorias();
-}
-
-function registrarHistorico(status) {
+function registrarHistorico(status, bloqueado) {
   const historico = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
   const codigo = numeroVeiculo.value.trim().toUpperCase();
   const registro = {
@@ -593,6 +622,7 @@ function registrarHistorico(status) {
     operador: operador.value.trim() || 'Operador não informado',
     data: new Date().toLocaleDateString('pt-BR'),
     status,
+    bloqueado,
     itens: coletarItensInspecao(),
     observacoes: observacoes.value.trim()
   };
@@ -601,7 +631,7 @@ function registrarHistorico(status) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(historico.slice(0, 10)));
 
   const statusSalvos = obterStatusVeiculos();
-  statusSalvos[codigo] = status === 'irregular' ? 'bloqueado' : 'liberado';
+  statusSalvos[codigo] = bloqueado ? 'bloqueado' : 'liberado';
   localStorage.setItem(VEHICLE_STATUS_KEY, JSON.stringify(statusSalvos));
 }
 
@@ -704,19 +734,26 @@ function validarChecklistCompleto() {
   const oleoAdequado = oleoSelecionado.value === 'adequado';
   const itemIrregular = Array.from(document.querySelectorAll('.item-obrigatorio'))
     .some((item) => item.value === 'irregular');
-  const statusInspecao = pressaoAdequada && oleoAdequado && !itemIrregular ? 'ok' : 'irregular';
+  const itemCriticoIrregular = Array.from(document.querySelectorAll('li[data-critical="true"] .item-obrigatorio'))
+    .some((item) => item.value === 'irregular');
+  const bloqueiaVeiculo = !pressaoAdequada || !oleoAdequado || itemCriticoIrregular;
+  const statusInspecao = bloqueiaVeiculo || itemIrregular ? 'irregular' : 'ok';
 
   ocultarErro(erroFinal);
-  resultadoFinal.textContent = statusInspecao === 'ok'
-    ? 'Inspeção finalizada. Veículo liberado para circulação.'
-    : 'Inspeção finalizada com irregularidade. Veículo bloqueado para circulação até avaliação/liberação.';
-  resultadoFinal.classList.add('show');
-  registrarHistorico(statusInspecao);
+  resultadoFinal.textContent = bloqueiaVeiculo
+    ? 'Foi identificada uma irregularidade que impede a circulação. O veículo será bloqueado até avaliação e liberação.'
+    : statusInspecao === 'irregular'
+      ? 'Inspeção finalizada com irregularidade. O veículo está liberado para circulação.'
+      : 'Inspeção finalizada sem irregularidades. Veículo liberado para circulação.';
+  resultadoFinal.className = `alert ${bloqueiaVeiculo ? 'error' : 'success'} show`;
+  registrarHistorico(statusInspecao, bloqueiaVeiculo);
   statusGeralBadge.textContent = statusInspecao === 'ok' ? 'OK' : 'Irregular';
   statusGeralBadge.className = `status-badge ${statusInspecao === 'ok' ? 'ok' : 'alert'}`;
-  statusGeralTexto.textContent = statusInspecao === 'ok'
-    ? 'Inspeção sem irregularidades. Veículo liberado para rodar.'
-    : 'Irregularidade identificada. Veículo bloqueado até liberação.';
+  statusGeralTexto.textContent = bloqueiaVeiculo
+    ? 'Irregularidade que impede a circulação. Veículo bloqueado até liberação.'
+    : statusInspecao === 'irregular'
+      ? 'Há item não crítico irregular. Veículo liberado para rodar.'
+      : 'Inspeção sem irregularidades. Veículo liberado para rodar.';
   atualizarRelatorio();
   salvarEstadoFormulario();
   return true;
@@ -748,6 +785,7 @@ btnIdentificar.addEventListener('click', () => {
 ].forEach((pneu) => {
   pneu.addEventListener('input', () => {
     validarPneus();
+    atualizarStatusCategorias();
     salvarEstadoFormulario();
   });
 });
@@ -789,7 +827,6 @@ btnSalvar.addEventListener('click', () => {
   erroFinal.classList.remove('show');
 });
 
-btnLimpar.addEventListener('click', limparFormulario);
 btnFinalizar.addEventListener('click', validarChecklistCompleto);
 filtroCategoriaRelatorio.addEventListener('change', () => {
   const historico = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');

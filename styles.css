@@ -246,6 +246,16 @@ button:hover {
   background: var(--primary-dark);
 }
 
+.tab-button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tab-button.active:hover {
+  color: var(--primary-dark);
+  background: #fff;
+}
+
 .alert,
 .status {
   margin-top: 14px;
@@ -381,6 +391,16 @@ button:hover {
   background: var(--primary-dark);
   color: #fff;
   border-color: var(--primary-dark);
+}
+
+.category-tab:hover {
+  color: var(--primary-dark);
+  background: #dce9ff;
+}
+
+.category-tab.active:hover {
+  color: #fff;
+  background: var(--primary-dark);
 }
 
 .category-card {
