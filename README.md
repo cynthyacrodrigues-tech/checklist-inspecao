@@ -5,7 +5,9 @@
 3. Sirva os arquivos por um servidor web local ou hospedagem estática e abra `index.html` pelo endereço servido.
 4. Crie uma conta pela tela de cadastro. Se a confirmação de e-mail estiver habilitada no Supabase, confirme o endereço antes de entrar.
 
-As senhas são gerenciadas pelo Supabase Auth. Novas contas recebem perfil de operador; para conceder acesso de gerente, altere o perfil no SQL Editor, por exemplo:
+As senhas são gerenciadas pelo Supabase Auth. Novas contas recebem perfil de operador. Todos os usuários autenticados podem consultar, cadastrar e alterar veículos, além de bloquear e liberar a circulação. O perfil de gerente continua disponível para identificação, mas não restringe essas ações.
+
+Para alterar o perfil de um usuário no SQL Editor, por exemplo:
 
 ```sql
 UPDATE public.usuarios

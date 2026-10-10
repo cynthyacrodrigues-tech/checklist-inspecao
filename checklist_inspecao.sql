@@ -83,19 +83,6 @@ CREATE TRIGGER ao_criar_usuario_auth
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION criar_perfil_de_usuario();
 
-CREATE OR REPLACE FUNCTION usuario_atual_e_gerente()
-RETURNS BOOLEAN
-LANGUAGE SQL
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.usuarios
-    WHERE auth_uid = auth.uid() AND tipo_de_perfil = 'gerente'
-  );
-$$;
-
 CREATE OR REPLACE FUNCTION alterar_situacao_veiculo(codigo_veiculo VARCHAR, nova_situacao VARCHAR)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -109,11 +96,6 @@ BEGIN
   IF nova_situacao NOT IN ('liberado', 'bloqueado') THEN
     RAISE EXCEPTION 'Situação de veículo inválida.';
   END IF;
-  IF nova_situacao = 'liberado' AND NOT usuario_atual_e_gerente()
-     AND EXISTS (SELECT 1 FROM public.veiculos WHERE codigo = codigo_veiculo AND situacao = 'bloqueado') THEN
-    RAISE EXCEPTION 'Somente gerente pode liberar veículo bloqueado.';
-  END IF;
-
   UPDATE public.veiculos SET situacao = nova_situacao WHERE codigo = codigo_veiculo;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Veículo não encontrado.';
@@ -133,42 +115,81 @@ GRANT SELECT ON usuarios, veiculos, inspecoes, itens_inspecao TO authenticated;
 GRANT INSERT ON veiculos, inspecoes, itens_inspecao TO authenticated;
 GRANT UPDATE ON veiculos TO authenticated;
 
+CREATE OR REPLACE FUNCTION public.usuario_atual_id()
+RETURNS BIGINT
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT id_usuario
+  FROM public.usuarios
+  WHERE auth_uid = auth.uid()
+  LIMIT 1;
+$$;
+
+REVOKE ALL ON FUNCTION public.usuario_atual_id() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.usuario_atual_id() TO authenticated;
+
 DROP POLICY IF EXISTS usuarios_consultar_perfil ON usuarios;
 CREATE POLICY usuarios_consultar_perfil ON usuarios
   FOR SELECT TO authenticated
   USING (TRUE);
 
-DROP POLICY IF EXISTS veiculos_consultar ON veiculos;
+DO $$
+DECLARE
+  politica RECORD;
+BEGIN
+  FOR politica IN
+    SELECT policyname
+    FROM pg_policies
+    WHERE schemaname = 'public' AND tablename = 'veiculos'
+  LOOP
+    EXECUTE format('DROP POLICY %I ON public.veiculos', politica.policyname);
+  END LOOP;
+END;
+$$;
+
 CREATE POLICY veiculos_consultar ON veiculos
   FOR SELECT TO authenticated USING (TRUE);
-DROP POLICY IF EXISTS veiculos_cadastrar_gerente ON veiculos;
-CREATE POLICY veiculos_cadastrar_gerente ON veiculos
-  FOR INSERT TO authenticated WITH CHECK (usuario_atual_e_gerente());
-DROP POLICY IF EXISTS veiculos_atualizar_gerente ON veiculos;
-CREATE POLICY veiculos_atualizar_gerente ON veiculos
-  FOR UPDATE TO authenticated
-  USING (usuario_atual_e_gerente()) WITH CHECK (usuario_atual_e_gerente());
+CREATE POLICY veiculos_cadastrar_autenticado ON veiculos
+  FOR INSERT TO authenticated WITH CHECK (TRUE);
+CREATE POLICY veiculos_atualizar_autenticado ON veiculos
+  FOR UPDATE TO authenticated USING (TRUE) WITH CHECK (TRUE);
 
-DROP POLICY IF EXISTS inspecoes_consultar ON inspecoes;
+DO $$
+DECLARE
+  politica RECORD;
+BEGIN
+  FOR politica IN
+    SELECT schemaname, tablename, policyname
+    FROM pg_policies
+    WHERE schemaname = 'public' AND tablename IN ('inspecoes', 'itens_inspecao')
+  LOOP
+    EXECUTE format(
+      'DROP POLICY %I ON public.%I',
+      politica.policyname,
+      politica.tablename
+    );
+  END LOOP;
+END;
+$$;
+
 CREATE POLICY inspecoes_consultar ON inspecoes
   FOR SELECT TO authenticated USING (TRUE);
-DROP POLICY IF EXISTS inspecoes_cadastrar ON inspecoes;
 CREATE POLICY inspecoes_cadastrar ON inspecoes
   FOR INSERT TO authenticated
-  WITH CHECK (id_usuario IN (SELECT id_usuario FROM usuarios WHERE auth_uid = auth.uid()));
+  WITH CHECK (id_usuario = public.usuario_atual_id());
 
-DROP POLICY IF EXISTS itens_consultar ON itens_inspecao;
 CREATE POLICY itens_consultar ON itens_inspecao
   FOR SELECT TO authenticated USING (TRUE);
-DROP POLICY IF EXISTS itens_cadastrar ON itens_inspecao;
 CREATE POLICY itens_cadastrar ON itens_inspecao
   FOR INSERT TO authenticated WITH CHECK (
     EXISTS (
-      SELECT 1 FROM inspecoes
+      SELECT 1
+      FROM public.inspecoes
       WHERE inspecoes.id_inspecao = itens_inspecao.id_inspecao
-        AND inspecoes.id_usuario IN (
-          SELECT id_usuario FROM usuarios WHERE auth_uid = auth.uid()
-        )
+        AND inspecoes.id_usuario = public.usuario_atual_id()
     )
   );
 

@@ -69,7 +69,7 @@
               </div>
               <button id="btnMostrarCadastroVeiculo" class="secondary-button" type="button" aria-expanded="false">Cadastrar veículo</button>
               <form id="cadastroVeiculoForm" class="vehicle-registration hidden">
-                <h3>Novo veículo</h3>
+                <h3 id="tituloCadastroVeiculo">Novo veículo</h3>
                 <div class="field-row">
                   <div><label for="novoNumeroVeiculo">Número do veículo</label><input id="novoNumeroVeiculo" type="text" required maxlength="20" /></div>
                   <div><label for="novoNomeVeiculo">Nome/modelo</label><input id="novoNomeVeiculo" type="text" required maxlength="60" /></div>
@@ -82,8 +82,34 @@
                   </div>
                 </div>
                 <div id="erroCadastroVeiculo" class="login-error" role="alert"></div>
-                <button type="submit">Salvar veículo</button>
+                <div class="vehicle-form-actions">
+                  <button id="btnSalvarVeiculo" type="submit">Salvar veículo</button>
+                  <button id="btnCancelarCadastroVeiculo" class="secondary-button" type="button">Cancelar</button>
+                </div>
               </form>
+
+              <section class="vehicle-catalog" aria-labelledby="tituloVeiculosCadastrados">
+                <div class="vehicle-catalog-heading">
+                  <h3 id="tituloVeiculosCadastrados">Veículos cadastrados</h3>
+                  <button id="btnAtualizarVeiculos" class="secondary-button" type="button">Atualizar lista</button>
+                </div>
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Número</th>
+                        <th>Modelo</th>
+                        <th>Placa</th>
+                        <th>Pressão (PSI)</th>
+                        <th>Situação</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody id="veiculosBody"></tbody>
+                  </table>
+                </div>
+                <p id="veiculosVazio" class="report-empty hidden">Nenhum veículo cadastrado.</p>
+              </section>
 
               <div id="erroIdentificacao" class="alert error">Veículo não cadastrado. Informe uma numeração válida para continuar.</div>
 
@@ -352,6 +378,7 @@
                 <tbody id="relatorioItensBody"></tbody>
               </table>
             </div>
+
             <p id="relatorioVazio" class="report-empty hidden">Não há itens registrados para esta categoria.</p>
             <p class="login-note">O bloqueio e a liberação são registros deste sistema e não acionam nenhum dispositivo físico do veículo. Siga o procedimento de segurança da operação.</p>
           </div>

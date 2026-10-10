@@ -44,6 +44,13 @@ let veiculoIdentificadoCodigo = '';
 const btnMostrarCadastroVeiculo = document.getElementById('btnMostrarCadastroVeiculo');
 const cadastroVeiculoForm = document.getElementById('cadastroVeiculoForm');
 const erroCadastroVeiculo = document.getElementById('erroCadastroVeiculo');
+const tituloCadastroVeiculo = document.getElementById('tituloCadastroVeiculo');
+const btnSalvarVeiculo = document.getElementById('btnSalvarVeiculo');
+const btnCancelarCadastroVeiculo = document.getElementById('btnCancelarCadastroVeiculo');
+const btnAtualizarVeiculos = document.getElementById('btnAtualizarVeiculos');
+const veiculosBody = document.getElementById('veiculosBody');
+const veiculosVazio = document.getElementById('veiculosVazio');
+let veiculoEditandoId = null;
 
 const statusPneus = document.getElementById('statusPneus');
 const statusOleo = document.getElementById('statusOleo');
@@ -131,7 +138,6 @@ function exibirAplicacao(conta) {
   perfilLogado.textContent = `(${conta.tipo_de_perfil === 'gerente' ? 'Gerente' : 'Operador'})`;
   operador.value = conta.nome_de_usuario;
   operador.readOnly = true;
-  btnMostrarCadastroVeiculo.classList.toggle('hidden', conta.tipo_de_perfil !== 'gerente');
   salvarEstadoFormulario();
   loginScreen.classList.add('hidden');
   appShell.classList.remove('hidden');
@@ -160,6 +166,19 @@ async function carregarPerfilUsuario(authUid) {
   return data;
 }
 
+function mensagemErroAutenticacao(error) {
+  switch (error.code) {
+    case 'invalid_credentials':
+      return 'E-mail ou senha incorretos. Confira os dados e, se acabou de criar a conta, confirme o e-mail antes de entrar.';
+    case 'email_not_confirmed':
+      return 'Confirme seu e-mail pelo link enviado pelo Supabase antes de entrar.';
+    case 'over_email_send_rate_limit':
+      return 'O Supabase atingiu o limite de envio de e-mails. Aguarde antes de tentar novamente.';
+    default:
+      return error.message || 'Não foi possível entrar no Supabase.';
+  }
+}
+
 loginForm.addEventListener('submit', async (evento) => {
   evento.preventDefault();
   if (!supabaseClient) {
@@ -178,7 +197,7 @@ loginForm.addEventListener('submit', async (evento) => {
     await carregarVeiculos();
     await atualizarRelatorio();
   } catch (error) {
-    loginErro.textContent = error.message || 'Não foi possível entrar no Supabase.';
+    loginErro.textContent = mensagemErroAutenticacao(error);
     loginErro.classList.add('show');
   }
 });
@@ -271,12 +290,37 @@ async function carregarVeiculos() {
   if (error) throw error;
   veiculos = Object.fromEntries(data.map((veiculo) => [veiculo.codigo, {
     id: veiculo.id_veiculo,
+    codigo: veiculo.codigo,
     nome: veiculo.nome_modelo,
     placa: veiculo.placa,
     pressaoMin: Number(veiculo.pressao_minima_psi),
     pressaoMax: Number(veiculo.pressao_maxima_psi),
     situacao: veiculo.situacao
   }]));
+  renderizarVeiculos();
+}
+
+function renderizarVeiculos() {
+  const lista = Object.values(veiculos).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  veiculosBody.innerHTML = lista.map((veiculo) => {
+    const bloqueado = veiculo.situacao === 'bloqueado';
+    const classeStatus = bloqueado ? 'alert' : 'ok';
+    const textoStatus = bloqueado ? 'Bloqueado' : 'Liberado';
+    const textoAcao = bloqueado ? 'Liberar' : 'Bloquear';
+    const classeAcao = bloqueado ? 'release' : 'block';
+    return `<tr>
+      <td>${escaparHTML(veiculo.codigo)}</td>
+      <td>${escaparHTML(veiculo.nome)}</td>
+      <td>${escaparHTML(veiculo.placa)}</td>
+      <td>${veiculo.pressaoMin}–${veiculo.pressaoMax}</td>
+      <td><span class="tag ${classeStatus}">${textoStatus}</span></td>
+      <td><div class="vehicle-row-actions">
+        <button class="secondary-button" type="button" data-acao-veiculo="editar" data-codigo-veiculo="${escaparHTML(veiculo.codigo)}">Editar</button>
+        <button class="report-action ${classeAcao}" type="button" data-acao-veiculo="alternar" data-codigo-veiculo="${escaparHTML(veiculo.codigo)}">${textoAcao}</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  veiculosVazio.classList.toggle('hidden', lista.length > 0);
 }
 
 async function atualizarRelatorio() {
@@ -501,9 +545,7 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
       veiculosComAcao.add(registro.veiculo);
       const controleVeiculo = !exibirAcao
         ? '—'
-        : bloqueado && obterUsuarioAtual()?.tipo_de_perfil !== 'gerente'
-          ? '<span class="muted-copy">Somente gerente</span>'
-          : `<button class="report-action ${classeAcao}" type="button" data-status-action="${bloqueado ? 'liberar' : 'bloquear'}" data-veiculo="${escaparHTML(registro.veiculo)}">${acao}</button>`;
+        : `<button class="report-action ${classeAcao}" type="button" data-status-action="${bloqueado ? 'liberar' : 'bloquear'}" data-veiculo="${escaparHTML(registro.veiculo)}">${acao}</button>`;
       return `<tr>
         <td>${escaparHTML(registro.veiculo)}</td>
         <td>${escaparHTML(item.nomeCategoria)}</td>
@@ -519,10 +561,6 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
 }
 
 async function alternarStatusVeiculo(codigo, acao) {
-  if (acao === 'liberar' && obterUsuarioAtual()?.tipo_de_perfil !== 'gerente') {
-    window.alert('Apenas um gerente pode liberar um veículo bloqueado.');
-    return;
-  }
   const statusNovo = acao === 'bloquear' ? 'bloqueado' : 'liberado';
   const atual = veiculoEstaBloqueado(codigo, registrosRelatorio);
 
@@ -548,6 +586,7 @@ async function alternarStatusVeiculo(codigo, acao) {
     return;
   }
   veiculos[codigo].situacao = statusNovo;
+  renderizarVeiculos();
   await atualizarRelatorio();
 }
 
@@ -938,6 +977,54 @@ btnMostrarCadastroVeiculo.addEventListener('click', () => {
   btnMostrarCadastroVeiculo.setAttribute('aria-expanded', String(!aberto));
 });
 
+btnAtualizarVeiculos.addEventListener('click', async () => {
+  try {
+    await carregarVeiculos();
+  } catch (error) {
+    window.alert(`Não foi possível atualizar a lista de veículos: ${error.message}`);
+  }
+});
+
+btnCancelarCadastroVeiculo.addEventListener('click', () => {
+  veiculoEditandoId = null;
+  cadastroVeiculoForm.reset();
+  cadastroVeiculoForm.classList.add('hidden');
+  btnMostrarCadastroVeiculo.setAttribute('aria-expanded', 'false');
+  tituloCadastroVeiculo.textContent = 'Novo veículo';
+  btnSalvarVeiculo.textContent = 'Salvar veículo';
+  erroCadastroVeiculo.classList.remove('show');
+});
+
+veiculosBody.addEventListener('click', async (evento) => {
+  const botao = evento.target.closest('[data-acao-veiculo]');
+  if (!botao) return;
+  const codigo = botao.dataset.codigoVeiculo;
+  const acao = botao.dataset.acaoVeiculo;
+
+  if (acao === 'editar') {
+    const veiculo = veiculos[codigo];
+    if (!veiculo) return;
+    veiculoEditandoId = veiculo.id;
+    document.getElementById('novoNumeroVeiculo').value = veiculo.codigo;
+    document.getElementById('novoNomeVeiculo').value = veiculo.nome;
+    document.getElementById('novaPlacaVeiculo').value = veiculo.placa;
+    document.getElementById('novaPressaoMin').value = veiculo.pressaoMin;
+    document.getElementById('novaPressaoMax').value = veiculo.pressaoMax;
+    tituloCadastroVeiculo.textContent = `Editar veículo ${veiculo.codigo}`;
+    btnSalvarVeiculo.textContent = 'Salvar alterações';
+    erroCadastroVeiculo.classList.remove('show');
+    cadastroVeiculoForm.classList.remove('hidden');
+    btnMostrarCadastroVeiculo.setAttribute('aria-expanded', 'true');
+    document.getElementById('novoNumeroVeiculo').focus();
+    return;
+  }
+
+  if (acao === 'alternar') {
+    const estaBloqueado = veiculos[codigo]?.situacao === 'bloqueado';
+    await alternarStatusVeiculo(codigo, estaBloqueado ? 'liberar' : 'bloquear');
+  }
+});
+
 cadastroVeiculoForm.addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const codigo = document.getElementById('novoNumeroVeiculo').value.trim().toUpperCase();
@@ -952,12 +1039,15 @@ cadastroVeiculoForm.addEventListener('submit', async (evento) => {
   }
 
   try {
-    const { error } = await supabaseClient.from('veiculos').insert({
+    const dadosVeiculo = {
       codigo, nome_modelo: nome, placa,
       pressao_minima_psi: pressaoMin,
-      pressao_maxima_psi: pressaoMax,
-      situacao: 'liberado'
-    });
+      pressao_maxima_psi: pressaoMax
+    };
+    const resultado = veiculoEditandoId
+      ? await supabaseClient.from('veiculos').update(dadosVeiculo).eq('id_veiculo', veiculoEditandoId)
+      : await supabaseClient.from('veiculos').insert({ ...dadosVeiculo, situacao: 'liberado' });
+    const { error } = resultado;
     if (error) throw error;
     await carregarVeiculos();
   } catch (error) {
@@ -966,9 +1056,12 @@ cadastroVeiculoForm.addEventListener('submit', async (evento) => {
     return;
   }
   erroCadastroVeiculo.classList.remove('show');
+  veiculoEditandoId = null;
   cadastroVeiculoForm.reset();
   cadastroVeiculoForm.classList.add('hidden');
   btnMostrarCadastroVeiculo.setAttribute('aria-expanded', 'false');
+  tituloCadastroVeiculo.textContent = 'Novo veículo';
+  btnSalvarVeiculo.textContent = 'Salvar veículo';
   numeroVeiculo.value = codigo;
   btnIdentificar.click();
 });
@@ -992,8 +1085,8 @@ btnIdentificar.addEventListener('click', async () => {
     bloquearChecklistAteIdentificacao();
     return;
   }
-  if (veiculo.situacao === 'bloqueado' && obterUsuarioAtual()?.tipo_de_perfil !== 'gerente') {
-    mostrarErro(erroIdentificacao, 'Veículo bloqueado. Solicite a avaliação e liberação de um gerente.');
+  if (veiculo.situacao === 'bloqueado') {
+    mostrarErro(erroIdentificacao, 'Veículo bloqueado. Um usuário autenticado pode liberá-lo na lista de veículos cadastrados após a avaliação operacional.');
     bloquearChecklistAteIdentificacao();
     return;
   }
