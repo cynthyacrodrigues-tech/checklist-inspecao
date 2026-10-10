@@ -12,8 +12,8 @@
         <h1>Acesso ao checklist</h1>
         <p>Entre para acessar a inspeção veicular e os relatórios.</p>
         <form id="loginForm">
-          <label for="loginUsuario">Usuário</label>
-          <input id="loginUsuario" type="text" autocomplete="username" required />
+          <label for="loginUsuario">E-mail</label>
+          <input id="loginUsuario" type="email" autocomplete="username" required />
           <label for="loginSenha" style="margin-top: 16px;">Senha</label>
           <input id="loginSenha" type="password" autocomplete="current-password" required />
           <div id="loginErro" class="login-error" role="alert">Informe usuário e senha para continuar.</div>
@@ -22,16 +22,17 @@
         <details class="account-registration">
           <summary>Criar login</summary>
           <form id="cadastroForm">
-            <label for="cadastroUsuario">Usuário</label>
-            <input id="cadastroUsuario" type="text" autocomplete="username" required minlength="3" />
+            <label for="cadastroUsuario">Nome de usuário</label>
+            <input id="cadastroUsuario" type="text" autocomplete="nickname" required minlength="3" />
+            <label for="cadastroEmail" style="margin-top: 16px;">E-mail</label>
+            <input id="cadastroEmail" type="email" autocomplete="email" required />
             <label for="cadastroSenha" style="margin-top: 16px;">Senha</label>
-            <input id="cadastroSenha" type="password" autocomplete="new-password" required minlength="4" />
-            <label class="manager-option"><input id="cadastroGerente" type="checkbox" /> Este usuário é gerente</label>
+            <input id="cadastroSenha" type="password" autocomplete="new-password" required minlength="6" />
             <div id="cadastroErro" class="login-error" role="alert"></div>
             <button type="submit">Criar conta</button>
           </form>
         </details>
-        <div class="login-note">Demonstração local: contas e dados ficam neste navegador. Isso não substitui autenticação segura em servidor.</div>
+        <div class="login-note">A autenticação e os dados são armazenados no Supabase. Novas contas começam com perfil de operador.</div>
       </section>
 
       <div id="appShell" class="hidden">
@@ -362,6 +363,8 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

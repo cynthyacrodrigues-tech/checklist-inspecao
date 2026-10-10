@@ -1,19 +1,14 @@
 const STORAGE_KEY = 'checklist-inspecao-state';
-const HISTORY_KEY = 'checklist-inspecao-historico';
-const VEHICLE_STATUS_KEY = 'checklist-inspecao-status-veiculos';
-const VEHICLES_KEY = 'checklist-inspecao-veiculos';
-const USERS_KEY = 'checklist-inspecao-usuarios';
-const SESSION_USER_KEY = 'checklist-inspecao-usuario';
-
-const veiculos = {
-  '001': { nome: 'Caminhão 1', placa: 'ABC1234', pressaoMin: 30, pressaoMax: 38 },
-  '002': { nome: 'Caminhão 2', placa: 'XYZ9876', pressaoMin: 28, pressaoMax: 36 },
-  '003': { nome: 'Van de logística', placa: 'LMN4567', pressaoMin: 31, pressaoMax: 35 },
-  ABC1234: { nome: 'Caminhão 1', placa: 'ABC1234', pressaoMin: 30, pressaoMax: 38 },
-  XYZ9876: { nome: 'Caminhão 2', placa: 'XYZ9876', pressaoMin: 28, pressaoMax: 36 },
-  LMN4567: { nome: 'Van de logística', placa: 'LMN4567', pressaoMin: 31, pressaoMax: 35 }
-};
-Object.assign(veiculos, JSON.parse(localStorage.getItem(VEHICLES_KEY) || '{}'));
+// Remove credenciais em texto puro guardadas por versões antigas do protótipo.
+localStorage.removeItem('checklist-inspecao-usuarios');
+sessionStorage.removeItem('checklist-inspecao-usuario');
+const supabaseClient = window.supabase?.createClient && window.SUPABASE_URL && window.SUPABASE_ANON_KEY
+  && !window.SUPABASE_URL.includes('SEU-PROJETO') && !window.SUPABASE_ANON_KEY.includes('SUA_CHAVE')
+  ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+  : null;
+let veiculos = {};
+let usuarioAtual = null;
+let registrosRelatorio = [];
 
 const irregularidadesPorVeiculo = [
   {
@@ -75,8 +70,8 @@ const loginSenha = document.getElementById('loginSenha');
 const loginErro = document.getElementById('loginErro');
 const cadastroForm = document.getElementById('cadastroForm');
 const cadastroUsuario = document.getElementById('cadastroUsuario');
+const cadastroEmail = document.getElementById('cadastroEmail');
 const cadastroSenha = document.getElementById('cadastroSenha');
-const cadastroGerente = document.getElementById('cadastroGerente');
 const cadastroErro = document.getElementById('cadastroErro');
 const appShell = document.getElementById('appShell');
 const welcomePanel = document.getElementById('welcomePanel');
@@ -110,13 +105,8 @@ function transformarItensInspecao() {
 
 transformarItensInspecao();
 
-function obterUsuarios() {
-  return JSON.parse(localStorage.getItem(USERS_KEY) || '{}');
-}
-
 function obterUsuarioAtual() {
-  const usuario = sessionStorage.getItem(SESSION_USER_KEY);
-  return usuario ? obterUsuarios()[usuario] || null : null;
+  return usuarioAtual;
 }
 
 function bloquearChecklistAteIdentificacao() {
@@ -134,13 +124,14 @@ function liberarChecklistIdentificado(codigo) {
   finalizacaoInspecaoCard.classList.remove('hidden');
 }
 
-function exibirAplicacao(usuario) {
-  const conta = obterUsuarios()[usuario];
+function exibirAplicacao(conta) {
   if (!conta) return encerrarSessao();
-  usuarioLogado.textContent = usuario;
-  perfilLogado.textContent = conta.gerente ? '(Gerente)' : '(Operador)';
-  operador.value = usuario;
+  usuarioAtual = conta;
+  usuarioLogado.textContent = conta.nome_de_usuario;
+  perfilLogado.textContent = `(${conta.tipo_de_perfil === 'gerente' ? 'Gerente' : 'Operador'})`;
+  operador.value = conta.nome_de_usuario;
   operador.readOnly = true;
+  btnMostrarCadastroVeiculo.classList.toggle('hidden', conta.tipo_de_perfil !== 'gerente');
   salvarEstadoFormulario();
   loginScreen.classList.add('hidden');
   appShell.classList.remove('hidden');
@@ -150,51 +141,83 @@ function exibirAplicacao(usuario) {
   tabButtons.forEach((botao) => botao.classList.remove('active'));
 }
 
-function encerrarSessao() {
-  sessionStorage.removeItem(SESSION_USER_KEY);
+async function encerrarSessao() {
+  usuarioAtual = null;
+  if (supabaseClient) await supabaseClient.auth.signOut();
   appShell.classList.add('hidden');
   loginScreen.classList.remove('hidden');
   loginSenha.value = '';
   loginUsuario.focus();
 }
 
-loginForm.addEventListener('submit', (evento) => {
-  evento.preventDefault();
-  const usuario = loginUsuario.value.trim();
-  const senha = loginSenha.value;
+async function carregarPerfilUsuario(authUid) {
+  const { data, error } = await supabaseClient
+    .from('usuarios')
+    .select('id_usuario, auth_uid, nome_de_usuario, tipo_de_perfil')
+    .eq('auth_uid', authUid)
+    .single();
+  if (error) throw error;
+  return data;
+}
 
-  const conta = obterUsuarios()[usuario];
-  if (!conta || conta.senha !== senha) {
-    loginErro.textContent = 'Usuário ou senha inválidos. Crie uma conta para começar.';
+loginForm.addEventListener('submit', async (evento) => {
+  evento.preventDefault();
+  if (!supabaseClient) {
+    loginErro.textContent = 'Configure a URL e a chave pública do Supabase em supabase-config.js.';
     loginErro.classList.add('show');
     return;
   }
-
-  sessionStorage.setItem(SESSION_USER_KEY, usuario);
-  loginErro.classList.remove('show');
-  exibirAplicacao(usuario);
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email: loginUsuario.value.trim(),
+      password: loginSenha.value
+    });
+    if (error) throw error;
+    exibirAplicacao(await carregarPerfilUsuario(data.user.id));
+    loginErro.classList.remove('show');
+    await carregarVeiculos();
+    await atualizarRelatorio();
+  } catch (error) {
+    loginErro.textContent = error.message || 'Não foi possível entrar no Supabase.';
+    loginErro.classList.add('show');
+  }
 });
 
-cadastroForm.addEventListener('submit', (evento) => {
+cadastroForm.addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const usuario = cadastroUsuario.value.trim();
   const senha = cadastroSenha.value;
-  const usuarios = obterUsuarios();
-  if (usuario.length < 3 || senha.length < 4) {
-    cadastroErro.textContent = 'Use pelo menos 3 caracteres no usuário e 4 na senha.';
+  if (usuario.length < 3 || senha.length < 6) {
+    cadastroErro.textContent = 'Use pelo menos 3 caracteres no usuário e 6 na senha.';
     cadastroErro.classList.add('show');
     return;
   }
-  if (usuarios[usuario]) {
-    cadastroErro.textContent = 'Esse usuário já está cadastrado.';
+  if (!supabaseClient) {
+    cadastroErro.textContent = 'Configure a URL e a chave pública do Supabase em supabase-config.js.';
     cadastroErro.classList.add('show');
     return;
   }
-  usuarios[usuario] = { senha, gerente: cadastroGerente.checked };
-  localStorage.setItem(USERS_KEY, JSON.stringify(usuarios));
-  sessionStorage.setItem(SESSION_USER_KEY, usuario);
-  cadastroErro.classList.remove('show');
-  exibirAplicacao(usuario);
+  try {
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: cadastroEmail.value.trim(),
+      password: senha,
+      options: { data: { nome_de_usuario: usuario } }
+    });
+    if (error) throw error;
+    if (data.session && data.user) {
+      exibirAplicacao(await carregarPerfilUsuario(data.user.id));
+      await carregarVeiculos();
+      await atualizarRelatorio();
+    } else {
+      cadastroErro.textContent = 'Conta criada. Confirme o e-mail para concluir o cadastro e entrar.';
+      cadastroErro.classList.add('show');
+      return;
+    }
+    cadastroErro.classList.remove('show');
+  } catch (error) {
+    cadastroErro.textContent = error.message || 'Não foi possível criar a conta no Supabase.';
+    cadastroErro.classList.add('show');
+  }
 });
 
 btnSair.addEventListener('click', encerrarSessao);
@@ -240,9 +263,51 @@ function renderizarIrregularidades() {
     .join('');
 }
 
-function atualizarRelatorio() {
-  const historico = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-  const registros = normalizarRegistros(historico.length ? historico : criarDadosDemonstracao());
+async function carregarVeiculos() {
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient
+    .from('veiculos')
+    .select('id_veiculo, codigo, nome_modelo, placa, pressao_minima_psi, pressao_maxima_psi, situacao');
+  if (error) throw error;
+  veiculos = Object.fromEntries(data.map((veiculo) => [veiculo.codigo, {
+    id: veiculo.id_veiculo,
+    nome: veiculo.nome_modelo,
+    placa: veiculo.placa,
+    pressaoMin: Number(veiculo.pressao_minima_psi),
+    pressaoMax: Number(veiculo.pressao_maxima_psi),
+    situacao: veiculo.situacao
+  }]));
+}
+
+async function atualizarRelatorio() {
+  if (!supabaseClient || !usuarioAtual) return;
+  const { data, error } = await supabaseClient
+    .from('inspecoes')
+    .select('id_inspecao, data_da_inspecao, resultado, veiculo_bloqueado, observacoes, veiculos(codigo, situacao), usuarios(nome_de_usuario), itens_inspecao(categoria, nome_item, valor, resultado, item_critico)')
+    .order('data_da_inspecao', { ascending: false });
+  if (error) {
+    relatorioBody.innerHTML = `<tr><td colspan="5">${escaparHTML(error.message)}</td></tr>`;
+    relatorioItensBody.innerHTML = '';
+    return;
+  }
+  const traduzirResultado = (resultado) => resultado === 'regular' ? 'ok' : resultado;
+  registrosRelatorio = (data || []).map((linha) => ({
+    id: linha.id_inspecao,
+    veiculo: linha.veiculos?.codigo || '',
+    operador: linha.usuarios?.nome_de_usuario || '',
+    data: new Date(linha.data_da_inspecao).toLocaleString('pt-BR'),
+    status: traduzirResultado(linha.resultado),
+    bloqueado: linha.veiculos?.situacao === 'bloqueado',
+    itens: (linha.itens_inspecao || []).map((item) => ({
+      categoria: item.categoria,
+      nomeCategoria: nomeCategoria(item.categoria),
+      item: item.nome_item,
+      valor: item.valor || '',
+      status: traduzirResultado(item.resultado),
+      critico: item.item_critico
+    }))
+  }));
+  const registros = registrosRelatorio;
 
   const total = registros.length;
   const irregular = registros.filter((item) => item.status === 'irregular').length;
@@ -272,6 +337,24 @@ function atualizarRelatorio() {
     })
     .join('');
   renderizarRelatorioItens(registros);
+  renderizarIrregularidadesDoBanco(registros);
+}
+
+function nomeCategoria(categoria) {
+  return ({
+    pneus: 'Pneus', iluminacao: 'Iluminação e sinalização', freios: 'Freios',
+    fluidos: 'Fluidos e motor', seguranca: 'Segurança do operador', geral: 'Checklist geral'
+  })[categoria] || categoria;
+}
+
+function renderizarIrregularidadesDoBanco(registros) {
+  const irregularidades = registros.flatMap((registro) => registro.itens
+    .filter((item) => item.status === 'irregular')
+    .map((item) => ({ veiculo: registro.veiculo, item })));
+  const container = document.getElementById('listaIrregularidades');
+  container.innerHTML = irregularidades.length
+    ? irregularidades.map(({ veiculo, item }) => `<div class="issue-card"><h3>${escaparHTML(veiculo)} - ${escaparHTML(item.nomeCategoria)}</h3><ul><li>${escaparHTML(item.item)}${item.valor ? ` (${escaparHTML(item.valor)})` : ''}</li></ul></div>`).join('')
+    : '<div class="issue-card"><h3>Nenhuma irregularidade</h3><p>Não há itens irregulares registrados.</p></div>';
 }
 
 function normalizarRegistros(registros) {
@@ -337,19 +420,10 @@ function obterRotuloItem(linha) {
     .join(' ');
 }
 
-function obterStatusVeiculos() {
-  return JSON.parse(localStorage.getItem(VEHICLE_STATUS_KEY) || '{}');
-}
-
 function veiculoEstaBloqueado(codigo, registros) {
-  const statusSalvos = obterStatusVeiculos();
-  if (Object.prototype.hasOwnProperty.call(statusSalvos, codigo)) {
-    return statusSalvos[codigo] === 'bloqueado';
-  }
-
-  const ultimaInspecao = registros.find((registro) => registro.veiculo === codigo);
-  if (typeof ultimaInspecao?.bloqueado === 'boolean') return ultimaInspecao.bloqueado;
-  return ultimaInspecao?.itens?.some((item) => item.critico && item.status === 'irregular') || false;
+  const veiculo = veiculos[codigo];
+  if (veiculo) return veiculo.situacao === 'bloqueado';
+  return registros.find((registro) => registro.veiculo === codigo)?.bloqueado === true;
 }
 
 function renderizarStatusCirculacao(codigo, registros = criarDadosDemonstracao()) {
@@ -427,7 +501,7 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
       veiculosComAcao.add(registro.veiculo);
       const controleVeiculo = !exibirAcao
         ? '—'
-        : bloqueado && !obterUsuarioAtual()?.gerente
+        : bloqueado && obterUsuarioAtual()?.tipo_de_perfil !== 'gerente'
           ? '<span class="muted-copy">Somente gerente</span>'
           : `<button class="report-action ${classeAcao}" type="button" data-status-action="${bloqueado ? 'liberar' : 'bloquear'}" data-veiculo="${escaparHTML(registro.veiculo)}">${acao}</button>`;
       return `<tr>
@@ -444,21 +518,19 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
   relatorioVazio.classList.toggle('hidden', linhas.length > 0);
 }
 
-function alternarStatusVeiculo(codigo, acao) {
-  if (acao === 'liberar' && !obterUsuarioAtual()?.gerente) {
+async function alternarStatusVeiculo(codigo, acao) {
+  if (acao === 'liberar' && obterUsuarioAtual()?.tipo_de_perfil !== 'gerente') {
     window.alert('Apenas um gerente pode liberar um veículo bloqueado.');
     return;
   }
-  const statusSalvos = obterStatusVeiculos();
-  const registros = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
   const statusNovo = acao === 'bloquear' ? 'bloqueado' : 'liberado';
-  const atual = veiculoEstaBloqueado(codigo, registros.length ? registros : criarDadosDemonstracao());
+  const atual = veiculoEstaBloqueado(codigo, registrosRelatorio);
 
   if ((acao === 'bloquear' && atual) || (acao === 'liberar' && !atual)) {
     return;
   }
 
-  const ultimaInspecao = (registros.length ? registros : criarDadosDemonstracao())
+  const ultimaInspecao = registrosRelatorio
     .find((registro) => registro.veiculo === codigo);
   const confirmacao = acao === 'bloquear'
     ? `Confirma o bloqueio do veículo ${codigo} para circulação?`
@@ -467,9 +539,16 @@ function alternarStatusVeiculo(codigo, acao) {
       : `Confirma a liberação do veículo ${codigo} para rodar?`;
   if (!window.confirm(confirmacao)) return;
 
-  statusSalvos[codigo] = statusNovo;
-  localStorage.setItem(VEHICLE_STATUS_KEY, JSON.stringify(statusSalvos));
-  atualizarRelatorio();
+  const { error } = await supabaseClient.rpc('alterar_situacao_veiculo', {
+    codigo_veiculo: codigo,
+    nova_situacao: statusNovo
+  });
+  if (error) {
+    window.alert(`Não foi possível atualizar o veículo: ${error.message}`);
+    return;
+  }
+  veiculos[codigo].situacao = statusNovo;
+  await atualizarRelatorio();
 }
 
 function atualizarStatusCategoria(card) {
@@ -690,25 +769,38 @@ function restaurarEstadoFormulario() {
   bloquearChecklistAteIdentificacao();
 }
 
-function registrarHistorico(status, bloqueado) {
-  const historico = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+async function registrarHistorico(status, bloqueado) {
   const codigo = numeroVeiculo.value.trim().toUpperCase();
-  const registro = {
-    veiculo: codigo || 'N/A',
-    operador: operador.value.trim() || 'Operador não informado',
-    data: new Date().toLocaleDateString('pt-BR'),
-    status,
-    bloqueado,
-    itens: coletarItensInspecao(),
-    observacoes: observacoes.value.trim()
-  };
+  const { data: inspecao, error } = await supabaseClient
+    .from('inspecoes')
+    .insert({
+      id_veiculo: veiculos[codigo].id,
+      id_usuario: usuarioAtual.id_usuario,
+      resultado: status === 'ok' ? 'regular' : status,
+      veiculo_bloqueado: bloqueado,
+      observacoes: observacoes.value.trim() || null
+    })
+    .select('id_inspecao')
+    .single();
+  if (error) throw error;
 
-  historico.unshift(registro);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(historico.slice(0, 10)));
+  const itens = coletarItensInspecao().map((item) => ({
+    id_inspecao: inspecao.id_inspecao,
+    categoria: item.categoria,
+    nome_item: item.item,
+    valor: item.valor || null,
+    resultado: item.status === 'ok' ? 'regular' : item.status,
+    item_critico: item.critico
+  }));
+  const { error: itensError } = await supabaseClient.from('itens_inspecao').insert(itens);
+  if (itensError) throw itensError;
 
-  const statusSalvos = obterStatusVeiculos();
-  statusSalvos[codigo] = bloqueado ? 'bloqueado' : 'liberado';
-  localStorage.setItem(VEHICLE_STATUS_KEY, JSON.stringify(statusSalvos));
+  const { error: veiculoError } = await supabaseClient.rpc('alterar_situacao_veiculo', {
+    codigo_veiculo: codigo,
+    nova_situacao: bloqueado ? 'bloqueado' : 'liberado'
+  });
+  if (veiculoError) throw veiculoError;
+  veiculos[codigo].situacao = bloqueado ? 'bloqueado' : 'liberado';
 }
 
 function validarPneus() {
@@ -777,7 +869,7 @@ function verificarItensObrigatorios() {
   return Array.from(itens).every((item) => item.value !== 'pendente');
 }
 
-function validarChecklistCompleto() {
+async function validarChecklistCompleto() {
   const codigoVeiculo = numeroVeiculo.value.trim().toUpperCase();
   const veiculo = veiculos[codigoVeiculo];
   const veiculoValido = !!veiculo && codigoVeiculo === veiculoIdentificadoCodigo;
@@ -823,7 +915,12 @@ function validarChecklistCompleto() {
       ? 'Inspeção finalizada com irregularidade. O veículo está liberado para circulação.'
       : 'Inspeção finalizada sem irregularidades. Veículo liberado para circulação.';
   resultadoFinal.className = `alert ${bloqueiaVeiculo ? 'error' : 'success'} show`;
-  registrarHistorico(statusInspecao, bloqueiaVeiculo);
+  try {
+    await registrarHistorico(statusInspecao, bloqueiaVeiculo);
+  } catch (error) {
+    mostrarErro(erroFinal, `Não foi possível salvar a inspeção no Supabase: ${error.message}`);
+    return false;
+  }
   statusGeralBadge.textContent = statusInspecao === 'ok' ? 'OK' : 'Irregular';
   statusGeralBadge.className = `status-badge ${statusInspecao === 'ok' ? 'ok' : 'alert'}`;
   statusGeralTexto.textContent = bloqueiaVeiculo
@@ -831,7 +928,7 @@ function validarChecklistCompleto() {
     : statusInspecao === 'irregular'
       ? 'Há item não crítico irregular. Veículo liberado para rodar.'
       : 'Inspeção sem irregularidades. Veículo liberado para rodar.';
-  atualizarRelatorio();
+  await atualizarRelatorio();
   salvarEstadoFormulario();
   return true;
 }
@@ -841,35 +938,33 @@ btnMostrarCadastroVeiculo.addEventListener('click', () => {
   btnMostrarCadastroVeiculo.setAttribute('aria-expanded', String(!aberto));
 });
 
-cadastroVeiculoForm.addEventListener('submit', (evento) => {
+cadastroVeiculoForm.addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const codigo = document.getElementById('novoNumeroVeiculo').value.trim().toUpperCase();
   const nome = document.getElementById('novoNomeVeiculo').value.trim();
   const placa = document.getElementById('novaPlacaVeiculo').value.trim().toUpperCase();
   const pressaoMin = Number(document.getElementById('novaPressaoMin').value);
   const pressaoMax = Number(document.getElementById('novaPressaoMax').value);
-  const placasExistentes = Object.values(veiculos).map((veiculo) => veiculo.placa.toUpperCase());
-
-  if (Object.prototype.hasOwnProperty.call(veiculos, codigo)) {
-    erroCadastroVeiculo.textContent = 'Já existe um veículo com essa numeração.';
-    erroCadastroVeiculo.classList.add('show');
-    return;
-  }
-  if (placasExistentes.includes(placa)) {
-    erroCadastroVeiculo.textContent = 'Já existe um veículo cadastrado com essa placa.';
-    erroCadastroVeiculo.classList.add('show');
-    return;
-  }
   if (!Number.isFinite(pressaoMin) || !Number.isFinite(pressaoMax) || pressaoMin >= pressaoMax) {
     erroCadastroVeiculo.textContent = 'A pressão máxima precisa ser maior que a pressão mínima.';
     erroCadastroVeiculo.classList.add('show');
     return;
   }
 
-  veiculos[codigo] = { nome, placa, pressaoMin, pressaoMax };
-  const veiculosPersonalizados = JSON.parse(localStorage.getItem(VEHICLES_KEY) || '{}');
-  veiculosPersonalizados[codigo] = veiculos[codigo];
-  localStorage.setItem(VEHICLES_KEY, JSON.stringify(veiculosPersonalizados));
+  try {
+    const { error } = await supabaseClient.from('veiculos').insert({
+      codigo, nome_modelo: nome, placa,
+      pressao_minima_psi: pressaoMin,
+      pressao_maxima_psi: pressaoMax,
+      situacao: 'liberado'
+    });
+    if (error) throw error;
+    await carregarVeiculos();
+  } catch (error) {
+    erroCadastroVeiculo.textContent = error.message || 'Não foi possível cadastrar o veículo.';
+    erroCadastroVeiculo.classList.add('show');
+    return;
+  }
   erroCadastroVeiculo.classList.remove('show');
   cadastroVeiculoForm.reset();
   cadastroVeiculoForm.classList.add('hidden');
@@ -878,12 +973,27 @@ cadastroVeiculoForm.addEventListener('submit', (evento) => {
   btnIdentificar.click();
 });
 
-btnIdentificar.addEventListener('click', () => {
+btnIdentificar.addEventListener('click', async () => {
+  if (!supabaseClient) {
+    mostrarErro(erroIdentificacao, 'Configure primeiro a conexão com o Supabase em supabase-config.js.');
+    return;
+  }
+  try {
+    await carregarVeiculos();
+  } catch (error) {
+    mostrarErro(erroIdentificacao, `Não foi possível consultar os veículos: ${error.message}`);
+    return;
+  }
   const codigo = numeroVeiculo.value.trim().toUpperCase();
   const veiculo = veiculos[codigo];
 
   if (!veiculo) {
     mostrarErro(erroIdentificacao, 'Veículo não cadastrado. Informe uma numeração válida para continuar.');
+    bloquearChecklistAteIdentificacao();
+    return;
+  }
+  if (veiculo.situacao === 'bloqueado' && obterUsuarioAtual()?.tipo_de_perfil !== 'gerente') {
+    mostrarErro(erroIdentificacao, 'Veículo bloqueado. Solicite a avaliação e liberação de um gerente.');
     bloquearChecklistAteIdentificacao();
     return;
   }
@@ -956,8 +1066,7 @@ btnSalvar.addEventListener('click', () => {
 
 btnFinalizar.addEventListener('click', validarChecklistCompleto);
 filtroCategoriaRelatorio.addEventListener('change', () => {
-  const historico = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-  renderizarRelatorioItens(normalizarRegistros(historico.length ? historico : criarDadosDemonstracao()));
+  renderizarRelatorioItens(registrosRelatorio);
 });
 relatorioItensBody.addEventListener('click', (evento) => {
   const botao = evento.target.closest('[data-status-action]');
@@ -969,12 +1078,26 @@ btnImprimirRelatorio.addEventListener('click', () => window.print());
 bloquearChecklistAteIdentificacao();
 atualizarStatusCategorias();
 trocarCategoria('todos');
-renderizarIrregularidades();
-atualizarRelatorio();
 restaurarEstadoFormulario();
 atualizarDataHora();
 
-const usuarioDaSessao = sessionStorage.getItem(SESSION_USER_KEY);
-if (usuarioDaSessao) {
-  exibirAplicacao(usuarioDaSessao);
+async function iniciarSupabase() {
+  if (!supabaseClient) {
+    loginErro.textContent = 'Configure SUPABASE_URL e SUPABASE_ANON_KEY no arquivo supabase-config.js.';
+    loginErro.classList.add('show');
+    return;
+  }
+  try {
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    if (!data.session) return;
+    exibirAplicacao(await carregarPerfilUsuario(data.session.user.id));
+    await carregarVeiculos();
+    await atualizarRelatorio();
+  } catch (error) {
+    loginErro.textContent = `Falha ao conectar ao Supabase: ${error.message}`;
+    loginErro.classList.add('show');
+  }
 }
+
+iniciarSupabase();

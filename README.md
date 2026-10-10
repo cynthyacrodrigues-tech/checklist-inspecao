@@ -1,3 +1,30 @@
+## Conexão com o Supabase
+
+1. Abra `checklist_inspecao.sql` no SQL Editor do projeto Supabase e execute o script.
+2. Copie a URL do projeto e a chave pública `anon`/`publishable` para `supabase-config.js`.
+3. Sirva os arquivos por um servidor web local ou hospedagem estática e abra `index.html` pelo endereço servido.
+4. Crie uma conta pela tela de cadastro. Se a confirmação de e-mail estiver habilitada no Supabase, confirme o endereço antes de entrar.
+
+As senhas são gerenciadas pelo Supabase Auth. Novas contas recebem perfil de operador; para conceder acesso de gerente, altere o perfil no SQL Editor, por exemplo:
+
+```sql
+UPDATE public.usuarios
+SET tipo_de_perfil = 'gerente'
+WHERE nome_de_usuario = 'nome_do_usuario';
+```
+
+Use somente a chave pública no navegador. Nunca coloque a chave `service_role` em `supabase-config.js`.
+
+### Criar usuário de teste
+
+O SQL Editor não é a interface suportada para criar contas de autenticação. Use `criar_usuario_teste.mjs` localmente com Node.js 18 ou superior e configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `TEST_USER_EMAIL`, `TEST_USER_PASSWORD` e `TEST_USER_NAME` no ambiente antes de executar:
+
+```sh
+node criar_usuario_teste.mjs
+```
+
+Obtenha a chave `service_role` nas configurações do projeto e mantenha-a apenas no ambiente local; o script confirma o e-mail de teste e o gatilho do banco cria o perfil em `public.usuarios`.
+
 ## Requisitos
 
 | ID | Requisito | Prioridade | Critério de aceite |
