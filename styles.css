@@ -807,7 +807,7 @@ th {
 
 .report-filters {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
   gap: 12px;
 }
@@ -821,8 +821,15 @@ th {
   margin-bottom: 6px;
 }
 
-.report-filters select {
+.report-filters select,
+.report-filters input[type="date"] {
   width: 100%;
+  height: 46px;
+  padding: 12px 14px;
+  border: 1px solid #cbdadc;
+  border-radius: 11px;
+  background: #fff;
+  font: inherit;
 }
 
 .table-scroll {

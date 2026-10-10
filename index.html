@@ -203,16 +203,14 @@
                     <span class="status-badge wait">Pendente</span>
                   </div>
 
-                  <div class="oil-options" style="margin-bottom: 12px;">
-                    <label><input type="radio" name="oleo" value="adequado" /> Nível de óleo adequado</label>
-                    <label><input type="radio" name="oleo" value="inadequado" /> Nível de óleo inadequado</label>
-                  </div>
-                  <div id="statusOleo" class="status warning">Selecione o nível de óleo verificado.</div>
+                  <label for="oleo">Condição do fluido do motor</label>
+                  <select id="oleo">
+                    <option value="pendente">Pendente</option>
+                    <option value="ok">Regular</option>
+                    <option value="irregular">Irregular</option>
+                  </select>
+                  <div id="statusOleo" class="status warning">Informe se o fluido do motor está regular ou irregular.</div>
 
-                  <ul class="checklist" style="margin-top: 12px;">
-                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Fluido do motor em nível correto</li>
-                    <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Motor sem ruídos ou falhas visíveis</li>
-                  </ul>
                 </div>
 
                 <div class="category-card" data-category="seguranca">
@@ -235,8 +233,6 @@
                   <ul class="checklist">
                     <li data-critical="true"><input type="checkbox" class="item-obrigatorio" /> Documento do veículo em ordem</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Visualização geral do veículo concluída</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Checagem de pneus concluída</li>
-                    <li><input type="checkbox" class="item-obrigatorio" /> Checagem de óleo concluída</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Irregularidades registradas quando necessárias</li>
                     <li><input type="checkbox" class="item-obrigatorio" /> Inspeção finalizada pelo operador</li>
                   </ul>
@@ -362,26 +358,20 @@
                   </select>
                 </div>
                 <div>
-                  <label for="filtroItemRelatorio">Item</label>
-                  <select id="filtroItemRelatorio">
-                    <option value="todos">Todos os itens</option>
-                  </select>
-                </div>
-                <div>
                   <label for="filtroDataRelatorio">Data</label>
                   <input id="filtroDataRelatorio" type="date" />
                 </div>
                 <div>
-                <label for="filtroCategoriaRelatorio">Categoria</label>
-                <select id="filtroCategoriaRelatorio">
-                  <option value="todos">Todas as categorias</option>
-                  <option value="pneus">Pneus</option>
-                  <option value="iluminacao">Iluminação e sinalização</option>
-                  <option value="freios">Freios</option>
-                  <option value="fluidos">Fluidos e motor</option>
-                  <option value="seguranca">Segurança do operador</option>
-                  <option value="geral">Checklist geral</option>
-                </select>
+                  <label for="filtroCategoriaRelatorio">Categoria</label>
+                  <select id="filtroCategoriaRelatorio">
+                    <option value="todos">Todas as categorias</option>
+                    <option value="pneus">Pneus</option>
+                    <option value="iluminacao">Iluminação e sinalização</option>
+                    <option value="freios">Freios</option>
+                    <option value="fluidos">Fluidos e motor</option>
+                    <option value="seguranca">Segurança do operador</option>
+                    <option value="geral">Checklist geral</option>
+                  </select>
                 </div>
               </div>
               <button id="btnImprimirRelatorio" class="secondary-button" type="button">Imprimir relatório</button>

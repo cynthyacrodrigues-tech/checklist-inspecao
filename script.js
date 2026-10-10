@@ -57,6 +57,7 @@ let veiculoEditandoId = null;
 
 const statusPneus = document.getElementById('statusPneus');
 const statusOleo = document.getElementById('statusOleo');
+const oleoCampo = document.getElementById('oleo');
 const operador = document.getElementById('operador');
 const observacoes = document.getElementById('observacoes');
 const dataAtual = document.getElementById('dataAtual');
@@ -74,7 +75,6 @@ const relatorioItensBody = document.getElementById('relatorioItensBody');
 const relatorioVazio = document.getElementById('relatorioVazio');
 const filtroCategoriaRelatorio = document.getElementById('filtroCategoriaRelatorio');
 const filtroVeiculoRelatorio = document.getElementById('filtroVeiculoRelatorio');
-const filtroItemRelatorio = document.getElementById('filtroItemRelatorio');
 const filtroDataRelatorio = document.getElementById('filtroDataRelatorio');
 const btnImprimirRelatorio = document.getElementById('btnImprimirRelatorio');
 const loginScreen = document.getElementById('loginScreen');
@@ -395,30 +395,14 @@ async function atualizarRelatorio() {
 
 function preencherFiltrosRelatorio(registros) {
   const manterVeiculo = filtroVeiculoRelatorio.value;
-  const manterItem = filtroItemRelatorio.value;
   const veiculosRelatorio = [...new Set(registros.map((registro) => registro.veiculo).filter(Boolean))].sort();
-  const itensPorCategoria = new Map();
-  registros.forEach((registro) => registro.itens.forEach((item) => {
-    if (!item.item) return;
-    if (!itensPorCategoria.has(item.categoria)) itensPorCategoria.set(item.categoria, new Set());
-    itensPorCategoria.get(item.categoria).add(item.item);
-  }));
   filtroVeiculoRelatorio.innerHTML = '<option value="todos">Todos os veículos</option>' + veiculosRelatorio
     .map((codigo) => `<option value="${escaparHTML(codigo)}">${escaparHTML(codigo)}</option>`).join('');
-  const gruposItens = [...itensPorCategoria.entries()]
-    .sort(([categoriaA], [categoriaB]) => nomeCategoria(categoriaA).localeCompare(nomeCategoria(categoriaB), 'pt-BR'))
-    .map(([categoria, itens]) => `<optgroup label="${escaparHTML(nomeCategoria(categoria))}">${[...itens]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
-      .map((item) => `<option value="${escaparHTML(item)}">${escaparHTML(item)}</option>`).join('')}</optgroup>`)
-    .join('');
-  filtroItemRelatorio.innerHTML = '<option value="todos">Todos os itens</option>' + gruposItens;
   filtroVeiculoRelatorio.value = veiculosRelatorio.includes(manterVeiculo) ? manterVeiculo : 'todos';
-  filtroItemRelatorio.value = [...itensPorCategoria.values()].some((itens) => itens.has(manterItem)) ? manterItem : 'todos';
 }
 
 function obterRegistrosFiltradosRelatorio() {
   const veiculoSelecionado = filtroVeiculoRelatorio.value;
-  const itemSelecionado = filtroItemRelatorio.value;
   const categoriaSelecionada = filtroCategoriaRelatorio.value;
   const dataSelecionada = filtroDataRelatorio.value;
   return registrosRelatorio.flatMap((registro) => {
@@ -429,10 +413,9 @@ function obterRegistrosFiltradosRelatorio() {
       if (dataLocal !== dataSelecionada) return [];
     }
     const itens = registro.itens.filter((item) =>
-      (itemSelecionado === 'todos' || item.item === itemSelecionado) &&
       (categoriaSelecionada === 'todos' || item.categoria === categoriaSelecionada)
     );
-    if ((itemSelecionado !== 'todos' || categoriaSelecionada !== 'todos') && itens.length === 0) return [];
+    if (categoriaSelecionada !== 'todos' && itens.length === 0) return [];
     return [{ ...registro, itens }];
   });
 }
@@ -669,6 +652,12 @@ async function alternarStatusVeiculo(codigo, acao) {
     return;
   }
 
+  let senhaLiberacao = null;
+  if (acao === 'liberar') {
+    senhaLiberacao = window.prompt(`Digite a senha para liberar o veículo ${codigo}:`);
+    if (senhaLiberacao === null) return;
+  }
+
   const ultimaInspecao = registrosRelatorio
     .find((registro) => registro.veiculo === codigo);
   const confirmacao = acao === 'bloquear'
@@ -680,7 +669,8 @@ async function alternarStatusVeiculo(codigo, acao) {
 
   const { error } = await supabaseClient.rpc('alterar_situacao_veiculo', {
     codigo_veiculo: codigo,
-    nova_situacao: statusNovo
+    nova_situacao: statusNovo,
+    senha_liberacao: senhaLiberacao
   });
   if (error) {
     window.alert(`Não foi possível atualizar o veículo: ${error.message}`);
@@ -720,10 +710,8 @@ function atualizarStatusCategoria(card) {
   const total = itens.length;
   const valores = Array.from(itens).map((item) => item.value);
 
-  const oleo = card.dataset.category === 'fluidos'
-    ? document.querySelector('input[name="oleo"]:checked')?.value || 'pendente'
-    : null;
-  if (valores.includes('irregular') || oleo === 'inadequado') {
+  const oleo = card.dataset.category === 'fluidos' ? oleoCampo.value : null;
+  if (valores.includes('irregular') || oleo === 'irregular') {
     badge.textContent = 'Irregular';
     badge.className = 'status-badge alert';
     return;
@@ -735,7 +723,7 @@ function atualizarStatusCategoria(card) {
     return;
   }
 
-  if (valores.every((valor) => valor === 'ok') && (!oleo || oleo === 'adequado')) {
+  if (valores.every((valor) => valor === 'ok') && (!oleo || oleo === 'ok')) {
     badge.textContent = 'Regular';
     badge.className = 'status-badge ok';
     return;
@@ -814,7 +802,7 @@ function coletarEstadoFormulario() {
     pneu2: document.getElementById('pneu2').value,
     pneu3: document.getElementById('pneu3').value,
     pneu4: document.getElementById('pneu4').value,
-    oleo: document.querySelector('input[name="oleo"]:checked')?.value || '',
+    oleo: oleoCampo.value,
     operador: operador.value,
     observacoes: observacoes.value,
     itens: Array.from(document.querySelectorAll('.item-obrigatorio')).map((item) => item.value),
@@ -846,7 +834,7 @@ function coletarItensInspecao() {
       critico: true
     };
   });
-  const oleo = document.querySelector('input[name="oleo"]:checked')?.value || '';
+  const oleo = oleoCampo.value;
   const itensChecklist = Array.from(categoryCards).flatMap((card) => {
     const categoria = card.dataset.category;
     const nomeCategoria = card.querySelector('h3').textContent.trim();
@@ -867,7 +855,7 @@ function coletarItensInspecao() {
       categoria: 'fluidos',
       nomeCategoria: 'Fluidos e motor',
       item: 'Nível de óleo',
-      status: oleo === 'adequado' ? 'ok' : oleo === 'inadequado' ? 'irregular' : 'pendente',
+      status: oleo,
       critico: true,
       critico: true
     }
@@ -890,12 +878,7 @@ function restaurarEstadoFormulario() {
   operador.value = saved.operador || '';
   observacoes.value = saved.observacoes || '';
 
-  if (saved.oleo) {
-    const radio = document.querySelector(`input[name="oleo"][value="${saved.oleo}"]`);
-    if (radio) {
-      radio.checked = true;
-    }
-  }
+  oleoCampo.value = ({ adequado: 'ok', inadequado: 'irregular' })[saved.oleo] || saved.oleo || 'pendente';
 
   const checks = Array.isArray(saved.itens) ? saved.itens : [];
   document.querySelectorAll('.item-obrigatorio').forEach((item, index) => {
@@ -913,9 +896,7 @@ function limparChecklistAposSalvar() {
   ['pneu1', 'pneu2', 'pneu3', 'pneu4'].forEach((id) => {
     document.getElementById(id).value = '';
   });
-  document.querySelectorAll('input[name="oleo"]').forEach((radio) => {
-    radio.checked = false;
-  });
+  oleoCampo.value = 'pendente';
   document.querySelectorAll('.item-obrigatorio').forEach((item) => {
     item.value = 'pendente';
   });
@@ -928,7 +909,7 @@ function limparChecklistAposSalvar() {
   resultadoFinal.classList.remove('show');
   statusPneus.textContent = 'Informe a pressão correta de cada pneu.';
   statusPneus.className = 'status warning';
-  statusOleo.textContent = 'Selecione o nível de óleo verificado.';
+  statusOleo.textContent = 'Informe se o fluido do motor está regular ou irregular.';
   statusOleo.className = 'status warning';
   localStorage.removeItem(STORAGE_KEY);
   inspecaoEmCorrecao = null;
@@ -985,7 +966,7 @@ async function iniciarCorrecaoInspecao(id) {
   ['pneu1', 'pneu2', 'pneu3', 'pneu4'].forEach((idPneu) => {
     document.getElementById(idPneu).value = '';
   });
-  document.querySelectorAll('input[name="oleo"]').forEach((radio) => { radio.checked = false; });
+  oleoCampo.value = 'pendente';
   document.querySelectorAll('.item-obrigatorio').forEach((campo) => { campo.value = 'pendente'; });
   numeroVeiculo.value = registro.veiculo;
   veiculoInfo.classList.add('show');
@@ -1007,8 +988,7 @@ async function iniciarCorrecaoInspecao(id) {
       return;
     }
     if (item.item === 'Nível de óleo') {
-      const valorOleo = item.status === 'ok' ? 'adequado' : item.status === 'irregular' ? 'inadequado' : '';
-      document.querySelectorAll('input[name="oleo"]').forEach((radio) => { radio.checked = radio.value === valorOleo; });
+      oleoCampo.value = item.status === 'regular' || item.status === 'ok' ? 'ok' : item.status === 'irregular' ? 'irregular' : 'pendente';
       return;
     }
     const seletor = Array.from(document.querySelectorAll('.item-obrigatorio')).find((campo) =>
@@ -1073,21 +1053,21 @@ function validarPneus() {
 }
 
 function validarOleo() {
-  const selecionado = document.querySelector('input[name="oleo"]:checked');
+  const selecionado = oleoCampo.value;
 
-  if (!selecionado) {
-    statusOleo.textContent = 'Selecione o nível de óleo verificado.';
+  if (selecionado === 'pendente') {
+    statusOleo.textContent = 'Informe se o fluido do motor está regular ou irregular.';
     statusOleo.className = 'status warning show';
     return false;
   }
 
-  if (selecionado.value === 'inadequado') {
-    statusOleo.textContent = 'Nível de óleo inadequado. A inspeção não pode continuar.';
+  if (selecionado === 'irregular') {
+    statusOleo.textContent = 'Fluido do motor irregular. O veículo será bloqueado para avaliação.';
     statusOleo.className = 'status error show';
     return false;
   }
 
-  statusOleo.textContent = 'Nível de óleo adequado.';
+  statusOleo.textContent = 'Fluido do motor regular.';
   statusOleo.className = 'status success show';
   return true;
 }
@@ -1103,7 +1083,7 @@ function levarAoPrimeiroCampoPendente({ veiculoValido, camposPneu, oleoSeleciona
     campo = numeroVeiculo;
   } else {
     campo = camposPneu.find((pneu) => pneu.value === '');
-    if (!campo && !oleoSelecionado) campo = document.querySelector('input[name="oleo"]');
+    if (!campo && !oleoSelecionado) campo = oleoCampo;
     if (!campo) campo = Array.from(document.querySelectorAll('.item-obrigatorio'))
       .find((item) => item.value === 'pendente');
   }
@@ -1121,7 +1101,7 @@ async function validarChecklistCompleto() {
   const veiculoValido = !!veiculo && codigoVeiculo === veiculoIdentificadoCodigo;
   const camposPneu = ['pneu1', 'pneu2', 'pneu3', 'pneu4'].map((id) => document.getElementById(id));
   const pneusPreenchidos = camposPneu.every((campo) => campo.value !== '' && Number.isFinite(Number(campo.value)));
-  const oleoSelecionado = document.querySelector('input[name="oleo"]:checked');
+  const oleoSelecionado = oleoCampo.value !== 'pendente';
   const itensCompletos = verificarItensObrigatorios();
   const operadorPreenchido = operador.value.trim() !== '';
 
@@ -1140,14 +1120,14 @@ async function validarChecklistCompleto() {
     } else {
       validarOleo();
     }
-    mostrarErro(erroFinal, 'Preencha os dados do veículo, informe todos os pneus, selecione o nível de óleo, conclua os itens e informe o operador.');
+    mostrarErro(erroFinal, 'Preencha os dados do veículo, informe todos os pneus, selecione a condição do fluido do motor, conclua os itens e informe o operador.');
     resultadoFinal.classList.remove('show');
     levarAoPrimeiroCampoPendente({ veiculoValido, camposPneu, oleoSelecionado });
     return false;
   }
 
   const pressaoAdequada = validarPneus();
-  const oleoAdequado = oleoSelecionado.value === 'adequado';
+  const oleoAdequado = oleoCampo.value === 'ok';
   const itemIrregular = Array.from(document.querySelectorAll('.item-obrigatorio'))
     .some((item) => item.value === 'irregular');
   const itemCriticoIrregular = Array.from(document.querySelectorAll('li[data-critical="true"] .item-obrigatorio'))
@@ -1332,12 +1312,10 @@ btnEditarVeiculoSelecionado.addEventListener('click', () => {
   });
 });
 
-document.querySelectorAll('input[name="oleo"]').forEach((radio) => {
-  radio.addEventListener('change', () => {
-    validarOleo();
-    atualizarStatusCategorias();
-    salvarEstadoFormulario();
-  });
+oleoCampo.addEventListener('change', () => {
+  validarOleo();
+  atualizarStatusCategorias();
+  salvarEstadoFormulario();
 });
 
 document.querySelectorAll('.item-obrigatorio').forEach((item) => {
@@ -1370,7 +1348,7 @@ btnSalvar.addEventListener('click', () => {
 });
 
 btnFinalizar.addEventListener('click', validarChecklistCompleto);
-[filtroCategoriaRelatorio, filtroVeiculoRelatorio, filtroItemRelatorio, filtroDataRelatorio].forEach((filtro) => {
+[filtroCategoriaRelatorio, filtroVeiculoRelatorio, filtroDataRelatorio].forEach((filtro) => {
   filtro.addEventListener('change', renderizarVisaoRelatorio);
 });
 relatorioItensBody.addEventListener('click', (evento) => {

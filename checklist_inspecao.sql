@@ -83,7 +83,12 @@ CREATE TRIGGER ao_criar_usuario_auth
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION criar_perfil_de_usuario();
 
-CREATE OR REPLACE FUNCTION alterar_situacao_veiculo(codigo_veiculo VARCHAR, nova_situacao VARCHAR)
+DROP FUNCTION IF EXISTS public.alterar_situacao_veiculo(VARCHAR, VARCHAR);
+CREATE OR REPLACE FUNCTION public.alterar_situacao_veiculo(
+  codigo_veiculo VARCHAR,
+  nova_situacao VARCHAR,
+  senha_liberacao VARCHAR
+)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -96,6 +101,9 @@ BEGIN
   IF nova_situacao NOT IN ('liberado', 'bloqueado') THEN
     RAISE EXCEPTION 'Situação de veículo inválida.';
   END IF;
+  IF nova_situacao = 'liberado' AND senha_liberacao IS DISTINCT FROM '123456' THEN
+    RAISE EXCEPTION 'Senha de liberação incorreta.';
+  END IF;
   UPDATE public.veiculos SET situacao = nova_situacao WHERE codigo = codigo_veiculo;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Veículo não encontrado.';
@@ -103,7 +111,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION alterar_situacao_veiculo(VARCHAR, VARCHAR) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.alterar_situacao_veiculo(VARCHAR, VARCHAR, VARCHAR) TO authenticated;
 
 ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE veiculos ENABLE ROW LEVEL SECURITY;

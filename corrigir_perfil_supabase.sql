@@ -134,9 +134,11 @@ CREATE POLICY veiculos_cadastrar_autenticado ON public.veiculos
 CREATE POLICY veiculos_atualizar_autenticado ON public.veiculos
   FOR UPDATE TO authenticated USING (TRUE) WITH CHECK (TRUE);
 
+DROP FUNCTION IF EXISTS public.alterar_situacao_veiculo(VARCHAR, VARCHAR);
 CREATE OR REPLACE FUNCTION public.alterar_situacao_veiculo(
   codigo_veiculo VARCHAR,
-  nova_situacao VARCHAR
+  nova_situacao VARCHAR,
+  senha_liberacao VARCHAR
 )
 RETURNS VOID
 LANGUAGE plpgsql
@@ -150,6 +152,9 @@ BEGIN
   IF nova_situacao NOT IN ('liberado', 'bloqueado') THEN
     RAISE EXCEPTION 'Situação de veículo inválida.';
   END IF;
+  IF nova_situacao = 'liberado' AND senha_liberacao IS DISTINCT FROM '123456' THEN
+    RAISE EXCEPTION 'Senha de liberação incorreta.';
+  END IF;
 
   UPDATE public.veiculos
   SET situacao = nova_situacao
@@ -161,7 +166,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.alterar_situacao_veiculo(VARCHAR, VARCHAR)
+GRANT EXECUTE ON FUNCTION public.alterar_situacao_veiculo(VARCHAR, VARCHAR, VARCHAR)
   TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
