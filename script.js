@@ -34,6 +34,7 @@ const irregularidadesPorVeiculo = [
 
 const numeroVeiculo = document.getElementById('numeroVeiculo');
 const btnIdentificar = document.getElementById('btnIdentificar');
+const btnEditarVeiculoSelecionado = document.getElementById('btnEditarVeiculoSelecionado');
 const erroIdentificacao = document.getElementById('erroIdentificacao');
 const veiculoInfo = document.getElementById('veiculoInfo');
 const veiculoNome = document.getElementById('veiculoNome');
@@ -107,7 +108,7 @@ function transformarItensInspecao() {
     seletor.setAttribute('aria-label', `Status do item: ${textoItem}`);
     seletor.innerHTML = `
       <option value="pendente">Pendente</option>
-      <option value="ok">OK</option>
+      <option value="ok">Regular</option>
       <option value="irregular">Irregular</option>
     `;
     checkbox.replaceWith(seletor);
@@ -307,6 +308,12 @@ async function carregarVeiculos() {
 
 function renderizarVeiculos() {
   const lista = Object.values(veiculos).sort((a, b) => a.codigo.localeCompare(b.codigo));
+  const codigoSelecionado = numeroVeiculo.value;
+  numeroVeiculo.innerHTML = '<option value="">Selecione um veículo</option>' + lista.map((veiculo) =>
+    `<option value="${escaparHTML(veiculo.codigo)}">${escaparHTML(veiculo.nome)} (${escaparHTML(veiculo.codigo)})</option>`
+  ).join('');
+  numeroVeiculo.value = veiculos[codigoSelecionado] ? codigoSelecionado : '';
+  atualizarBotaoEditarVeiculoSelecionado();
   veiculosBody.innerHTML = lista.map((veiculo) => {
     const bloqueado = veiculo.situacao === 'bloqueado';
     const classeStatus = bloqueado ? 'alert' : 'ok';
@@ -326,6 +333,28 @@ function renderizarVeiculos() {
     </tr>`;
   }).join('');
   veiculosVazio.classList.toggle('hidden', lista.length > 0);
+}
+
+function atualizarBotaoEditarVeiculoSelecionado() {
+  const codigo = numeroVeiculo.value.trim().toUpperCase();
+  btnEditarVeiculoSelecionado.classList.toggle('hidden', !veiculos[codigo]);
+}
+
+function abrirEdicaoVeiculo(codigo) {
+  const veiculo = veiculos[codigo];
+  if (!veiculo) return;
+  veiculoEditandoId = veiculo.id;
+  document.getElementById('novoNumeroVeiculo').value = veiculo.codigo;
+  document.getElementById('novoNomeVeiculo').value = veiculo.nome;
+  document.getElementById('novaPlacaVeiculo').value = veiculo.placa;
+  document.getElementById('novaPressaoMin').value = veiculo.pressaoMin;
+  document.getElementById('novaPressaoMax').value = veiculo.pressaoMax;
+  tituloCadastroVeiculo.textContent = `Editar veículo ${veiculo.codigo}`;
+  btnSalvarVeiculo.textContent = 'Salvar alterações';
+  erroCadastroVeiculo.classList.remove('show');
+  cadastroVeiculoForm.classList.remove('hidden');
+  btnMostrarCadastroVeiculo.setAttribute('aria-expanded', 'true');
+  document.getElementById('novoNumeroVeiculo').focus();
 }
 
 async function atualizarRelatorio() {
@@ -653,7 +682,7 @@ function atualizarStatusCategoria(card) {
       badge.textContent = 'Irregular';
       badge.className = 'status-badge alert';
     } else if (veiculo && todosPreenchidos) {
-      badge.textContent = 'OK';
+      badge.textContent = 'Regular';
       badge.className = 'status-badge ok';
     } else {
       badge.textContent = 'Pendente';
@@ -682,7 +711,7 @@ function atualizarStatusCategoria(card) {
   }
 
   if (valores.every((valor) => valor === 'ok') && (!oleo || oleo === 'adequado')) {
-    badge.textContent = 'OK';
+    badge.textContent = 'Regular';
     badge.className = 'status-badge ok';
     return;
   }
@@ -703,13 +732,13 @@ function atualizarStatusCategorias() {
     const badge = card.querySelector('.status-badge');
     if (!badge) return;
 
-    if (badge.textContent.trim() === 'OK') ok += 1;
+    if (badge.textContent.trim() === 'Regular') ok += 1;
     else if (badge.textContent.trim() === 'Irregular') irregular += 1;
     else pendente += 1;
   });
 
   if (ok === totalCategorias) {
-    statusGeralBadge.textContent = 'OK';
+    statusGeralBadge.textContent = 'Regular';
     statusGeralBadge.className = 'status-badge ok';
     statusGeralTexto.textContent = 'Todos os itens da inspeção foram concluídos.';
     return;
@@ -867,6 +896,7 @@ function limparChecklistAposSalvar() {
   });
   observacoes.value = '';
   numeroVeiculo.value = '';
+  atualizarBotaoEditarVeiculoSelecionado();
   bloquearChecklistAteIdentificacao();
   ocultarErro(erroIdentificacao);
   ocultarErro(erroFinal);
@@ -1094,7 +1124,7 @@ async function validarChecklistCompleto() {
     mostrarErro(erroFinal, `Não foi possível salvar a inspeção no Supabase: ${error.message}`);
     return false;
   }
-  statusGeralBadge.textContent = statusInspecao === 'ok' ? 'OK' : 'Irregular';
+  statusGeralBadge.textContent = statusInspecao === 'ok' ? 'Regular' : 'Irregular';
   statusGeralBadge.className = `status-badge ${statusInspecao === 'ok' ? 'ok' : 'alert'}`;
   statusGeralTexto.textContent = bloqueiaVeiculo
     ? 'Checklist salvo e campos limpos. Irregularidade que impede a circulação; veículo bloqueado até liberação.'
@@ -1136,20 +1166,7 @@ veiculosBody.addEventListener('click', async (evento) => {
   const acao = botao.dataset.acaoVeiculo;
 
   if (acao === 'editar') {
-    const veiculo = veiculos[codigo];
-    if (!veiculo) return;
-    veiculoEditandoId = veiculo.id;
-    document.getElementById('novoNumeroVeiculo').value = veiculo.codigo;
-    document.getElementById('novoNomeVeiculo').value = veiculo.nome;
-    document.getElementById('novaPlacaVeiculo').value = veiculo.placa;
-    document.getElementById('novaPressaoMin').value = veiculo.pressaoMin;
-    document.getElementById('novaPressaoMax').value = veiculo.pressaoMax;
-    tituloCadastroVeiculo.textContent = `Editar veículo ${veiculo.codigo}`;
-    btnSalvarVeiculo.textContent = 'Salvar alterações';
-    erroCadastroVeiculo.classList.remove('show');
-    cadastroVeiculoForm.classList.remove('hidden');
-    btnMostrarCadastroVeiculo.setAttribute('aria-expanded', 'true');
-    document.getElementById('novoNumeroVeiculo').focus();
+    abrirEdicaoVeiculo(codigo);
     return;
   }
 
@@ -1235,10 +1252,15 @@ btnIdentificar.addEventListener('click', async () => {
   salvarEstadoFormulario();
 });
 
-numeroVeiculo.addEventListener('input', () => {
+numeroVeiculo.addEventListener('change', () => {
+  atualizarBotaoEditarVeiculoSelecionado();
   if (numeroVeiculo.value.trim().toUpperCase() !== veiculoIdentificadoCodigo) {
     bloquearChecklistAteIdentificacao();
   }
+});
+
+btnEditarVeiculoSelecionado.addEventListener('click', () => {
+  abrirEdicaoVeiculo(numeroVeiculo.value.trim().toUpperCase());
 });
 
 [

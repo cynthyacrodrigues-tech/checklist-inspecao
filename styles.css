@@ -45,7 +45,7 @@ body {
 }
 
 .login-screen {
-  max-width: 480px;
+  max-width: 440px;
   margin: min(10vh, 90px) auto;
   padding: 34px;
   background: var(--panel);
@@ -806,14 +806,14 @@ th {
 }
 
 .report-filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: end;
   gap: 12px;
 }
 
 .report-filters > div {
-  min-width: 170px;
+  min-width: 0;
 }
 
 .report-filters label {
@@ -859,6 +859,13 @@ th {
 .login-screen {
   border-radius: 24px;
   padding: 38px;
+}
+
+#loginForm input[type="email"],
+#loginForm input[type="password"] {
+  display: block;
+  width: 100%;
+  min-height: 46px;
 }
 
 .login-screen h1,
@@ -1010,6 +1017,12 @@ tbody tr:hover {
 
   .report-detail-heading > div:last-child {
     min-width: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .report-filters {
+    grid-template-columns: 1fr;
   }
 }
 

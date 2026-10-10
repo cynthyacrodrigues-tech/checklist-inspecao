@@ -62,11 +62,14 @@
               <h2>Identificação do veículo</h2>
               <div class="field-row">
                 <div>
-                  <label for="numeroVeiculo">Numeração do veículo</label>
-                  <input id="numeroVeiculo" type="text" placeholder="Ex.: 001" maxlength="20" />
+                  <label for="numeroVeiculo">Nome do veículo</label>
+                  <select id="numeroVeiculo">
+                    <option value="">Selecione um veículo</option>
+                  </select>
                 </div>
                 <button id="btnIdentificar" type="button">Identificar</button>
               </div>
+              <button id="btnEditarVeiculoSelecionado" class="secondary-button hidden" type="button">Editar veículo selecionado</button>
               <button id="btnMostrarCadastroVeiculo" class="secondary-button" type="button" aria-expanded="false">Cadastrar veículo</button>
               <form id="cadastroVeiculoForm" class="vehicle-registration hidden">
                 <h3 id="tituloCadastroVeiculo">Novo veículo</h3>
@@ -88,7 +91,7 @@
                 </div>
               </form>
 
-              <section class="vehicle-catalog" aria-labelledby="tituloVeiculosCadastrados">
+              <section class="vehicle-catalog hidden" aria-labelledby="tituloVeiculosCadastrados">
                 <div class="vehicle-catalog-heading">
                   <h3 id="tituloVeiculosCadastrados">Veículos cadastrados</h3>
                   <button id="btnAtualizarVeiculos" class="secondary-button" type="button">Atualizar lista</button>
@@ -131,7 +134,7 @@
 
             <section id="itensInspecaoCard" class="card hidden">
               <h2>Itens da inspeção</h2>
-              <p class="muted-copy">Marque cada item como OK ou Irregular. Itens não avaliados permanecem pendentes.</p>
+              <p class="muted-copy">Marque cada item como Regular ou Irregular. Itens não avaliados permanecem pendentes.</p>
 
               <div class="category-tabs">
                 <button class="category-tab" type="button" data-category="pneus">Pneus</button>
