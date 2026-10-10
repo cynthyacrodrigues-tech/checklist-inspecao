@@ -1,8 +1,8 @@
 :root {
-  --primary: #1f5fbf;
-  --primary-dark: #104d8a;
-  --secondary: #5a7ef5;
-  --success: #1e8e5a;
+  --primary: #176b87;
+  --primary-dark: #104459;
+  --secondary: #38a3a5;
+  --success: #18835f;
   --success-soft: #dff7eb;
   --warning: #cc8a00;
   --warning-soft: #fff3d6;
@@ -10,10 +10,10 @@
   --danger-soft: #fde7e7;
   --text: #1d2430;
   --muted: #5b6473;
-  --bg: #edf4ff;
+  --bg: #f2f6f7;
   --panel: #ffffff;
-  --line: #dfe7f3;
-  --shadow: 0 18px 40px rgba(31, 95, 191, 0.12);
+  --line: #dce6e8;
+  --shadow: 0 12px 30px rgba(24, 61, 73, 0.08);
 }
 
 .muted-copy {
@@ -27,15 +27,15 @@
 
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(90, 126, 245, 0.12), transparent 22%),
-    linear-gradient(180deg, #edf4ff 0%, #f8fafc 100%);
+    radial-gradient(circle at 8% 0%, rgba(56, 163, 165, 0.1), transparent 26%),
+    linear-gradient(180deg, #f2f7f7 0%, #f8faf9 100%);
   color: var(--text);
 }
 
 .container {
-  max-width: 1160px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 32px 20px 64px;
 }
@@ -89,6 +89,56 @@ body {
   display: block;
 }
 
+.account-registration {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.account-registration summary {
+  color: var(--primary-dark);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manager-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.manager-option input {
+  width: auto;
+  margin: 0;
+}
+
+.vehicle-registration {
+  margin-top: 16px;
+  padding: 18px;
+  background: #f8fbff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.vehicle-registration h3 {
+  margin: 0 0 12px;
+  color: var(--primary-dark);
+}
+
+.vehicle-registration .field-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
+}
+
+.vehicle-registration .field-row .field-row {
+  margin-top: 0;
+}
+
+#btnMostrarCadastroVeiculo {
+  margin-top: 14px;
+}
+
 .app-user {
   display: flex;
   align-items: center;
@@ -121,10 +171,11 @@ body {
 }
 
 .topbar {
-  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+  background: linear-gradient(125deg, #103f53 0%, #176b87 58%, #23919a 100%);
   color: #fff;
-  border-radius: 22px 22px 0 0;
-  padding: 28px 28px 24px;
+  border-radius: 24px;
+  padding: 32px 34px 28px;
+  margin-bottom: 24px;
   box-shadow: var(--shadow);
 }
 
@@ -166,7 +217,7 @@ body {
 .layout {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
-  gap: 22px;
+  gap: 20px;
   margin-top: 22px;
 }
 
@@ -181,8 +232,8 @@ body {
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 22px 24px;
+  border-radius: 18px;
+  padding: 24px;
   box-shadow: var(--shadow);
 }
 
@@ -471,6 +522,24 @@ button:hover {
   font-size: 1.1rem;
 }
 
+.category-icon.tire-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--primary-dark);
+  background: #e4f3f1;
+}
+
+.tire-icon svg {
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .finalization-card {
   margin-top: 22px;
   border: 2px solid #c9dcff;
@@ -738,6 +807,120 @@ th {
   color: var(--muted);
 }
 
+/* Acabamento visual e estados de foco compartilhados pela aplicação. */
+.login-screen {
+  border-radius: 24px;
+  padding: 38px;
+}
+
+.login-screen h1,
+.topbar h1 {
+  letter-spacing: -0.035em;
+}
+
+.topbar h1 {
+  font-size: clamp(1.8rem, 3vw, 2.55rem);
+}
+
+.topbar p {
+  max-width: 680px;
+  line-height: 1.55;
+}
+
+.welcome-panel {
+  border-left: 5px solid var(--secondary);
+}
+
+.card h2 {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #edf1f2;
+}
+
+button,
+input,
+select,
+textarea {
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
+}
+
+button:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(56, 163, 165, 0.3);
+  outline-offset: 2px;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  border-color: #cbdadc;
+  border-radius: 11px;
+}
+
+.category-tab {
+  padding: 9px 15px;
+  background: #f3f7f7;
+  border-color: #dce6e8;
+}
+
+.category-tab.active {
+  background: var(--primary-dark);
+  border-color: var(--primary-dark);
+  box-shadow: 0 5px 12px rgba(16, 68, 89, 0.16);
+}
+
+.category-card {
+  border-radius: 15px;
+  box-shadow: 0 5px 16px rgba(24, 61, 73, 0.045);
+}
+
+.tire-item,
+.checklist li,
+.summary .meta,
+.report-box {
+  border-color: #e0e9ea;
+}
+
+.tire-item label {
+  color: var(--primary-dark);
+}
+
+.status-geral {
+  background: linear-gradient(120deg, #f0f7f7, #f8fbfb);
+}
+
+th {
+  background: #f5f8f8;
+  white-space: nowrap;
+}
+
+td {
+  vertical-align: middle;
+}
+
+tbody tr:hover {
+  background: #f8fbfb;
+}
+
+.secondary-button {
+  background: #e8f3f3;
+  color: var(--primary-dark);
+  border-color: #cfe1e2;
+}
+
+.secondary-button:hover {
+  background: #dceeee;
+}
+
+.finalization-card {
+  border-color: #b9dadd;
+  background: linear-gradient(135deg, #fff 0%, #f2f9f8 100%);
+}
+
 @media (max-width: 820px) {
   .layout {
     grid-template-columns: 1fr;
@@ -752,6 +935,10 @@ th {
   }
 
   .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicle-registration .field-row {
     grid-template-columns: 1fr;
   }
 

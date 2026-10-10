@@ -1,12 +1,19 @@
 const STORAGE_KEY = 'checklist-inspecao-state';
 const HISTORY_KEY = 'checklist-inspecao-historico';
 const VEHICLE_STATUS_KEY = 'checklist-inspecao-status-veiculos';
+const VEHICLES_KEY = 'checklist-inspecao-veiculos';
+const USERS_KEY = 'checklist-inspecao-usuarios';
+const SESSION_USER_KEY = 'checklist-inspecao-usuario';
 
 const veiculos = {
-  ABC1234: { nome: 'Caminhão 1', pressaoMin: 30, pressaoMax: 38 },
-  XYZ9876: { nome: 'Caminhão 2', pressaoMin: 28, pressaoMax: 36 },
-  LMN4567: { nome: 'Van de logística', pressaoMin: 31, pressaoMax: 35 }
+  '001': { nome: 'Caminhão 1', placa: 'ABC1234', pressaoMin: 30, pressaoMax: 38 },
+  '002': { nome: 'Caminhão 2', placa: 'XYZ9876', pressaoMin: 28, pressaoMax: 36 },
+  '003': { nome: 'Van de logística', placa: 'LMN4567', pressaoMin: 31, pressaoMax: 35 },
+  ABC1234: { nome: 'Caminhão 1', placa: 'ABC1234', pressaoMin: 30, pressaoMax: 38 },
+  XYZ9876: { nome: 'Caminhão 2', placa: 'XYZ9876', pressaoMin: 28, pressaoMax: 36 },
+  LMN4567: { nome: 'Van de logística', placa: 'LMN4567', pressaoMin: 31, pressaoMax: 35 }
 };
+Object.assign(veiculos, JSON.parse(localStorage.getItem(VEHICLES_KEY) || '{}'));
 
 const irregularidadesPorVeiculo = [
   {
@@ -35,6 +42,13 @@ const veiculoInfo = document.getElementById('veiculoInfo');
 const veiculoNome = document.getElementById('veiculoNome');
 const faixaPressao = document.getElementById('faixaPressao');
 const statusVeiculo = document.getElementById('statusVeiculo');
+const itensInspecaoCard = document.getElementById('itensInspecaoCard');
+const dadosInspecaoAside = document.getElementById('dadosInspecaoAside');
+const finalizacaoInspecaoCard = document.getElementById('finalizacaoInspecaoCard');
+let veiculoIdentificadoCodigo = '';
+const btnMostrarCadastroVeiculo = document.getElementById('btnMostrarCadastroVeiculo');
+const cadastroVeiculoForm = document.getElementById('cadastroVeiculoForm');
+const erroCadastroVeiculo = document.getElementById('erroCadastroVeiculo');
 
 const statusPneus = document.getElementById('statusPneus');
 const statusOleo = document.getElementById('statusOleo');
@@ -59,15 +73,21 @@ const loginForm = document.getElementById('loginForm');
 const loginUsuario = document.getElementById('loginUsuario');
 const loginSenha = document.getElementById('loginSenha');
 const loginErro = document.getElementById('loginErro');
+const cadastroForm = document.getElementById('cadastroForm');
+const cadastroUsuario = document.getElementById('cadastroUsuario');
+const cadastroSenha = document.getElementById('cadastroSenha');
+const cadastroGerente = document.getElementById('cadastroGerente');
+const cadastroErro = document.getElementById('cadastroErro');
 const appShell = document.getElementById('appShell');
 const welcomePanel = document.getElementById('welcomePanel');
 const usuarioLogado = document.getElementById('usuarioLogado');
+const perfilLogado = document.getElementById('perfilLogado');
 const btnSair = document.getElementById('btnSair');
 const tabButtons = document.querySelectorAll('.tab-button');
 const checklistPanel = document.getElementById('checklist-panel');
 const relatoriosPanel = document.getElementById('relatorios-panel');
 const categoryTabs = document.querySelectorAll('.category-tab');
-const categoryCards = document.querySelectorAll('.category-card');
+let categoryCards = document.querySelectorAll('.category-card');
 const statusGeralBadge = document.getElementById('statusGeralBadge');
 const statusGeralTexto = document.getElementById('statusGeralTexto');
 
@@ -90,8 +110,35 @@ function transformarItensInspecao() {
 
 transformarItensInspecao();
 
+function obterUsuarios() {
+  return JSON.parse(localStorage.getItem(USERS_KEY) || '{}');
+}
+
+function obterUsuarioAtual() {
+  const usuario = sessionStorage.getItem(SESSION_USER_KEY);
+  return usuario ? obterUsuarios()[usuario] || null : null;
+}
+
+function bloquearChecklistAteIdentificacao() {
+  veiculoIdentificadoCodigo = '';
+  veiculoInfo.classList.remove('show');
+  itensInspecaoCard.classList.add('hidden');
+  dadosInspecaoAside.classList.add('hidden');
+  finalizacaoInspecaoCard.classList.add('hidden');
+}
+
+function liberarChecklistIdentificado(codigo) {
+  veiculoIdentificadoCodigo = codigo;
+  itensInspecaoCard.classList.remove('hidden');
+  dadosInspecaoAside.classList.remove('hidden');
+  finalizacaoInspecaoCard.classList.remove('hidden');
+}
+
 function exibirAplicacao(usuario) {
+  const conta = obterUsuarios()[usuario];
+  if (!conta) return encerrarSessao();
   usuarioLogado.textContent = usuario;
+  perfilLogado.textContent = conta.gerente ? '(Gerente)' : '(Operador)';
   operador.value = usuario;
   operador.readOnly = true;
   salvarEstadoFormulario();
@@ -104,7 +151,7 @@ function exibirAplicacao(usuario) {
 }
 
 function encerrarSessao() {
-  sessionStorage.removeItem('checklist-inspecao-usuario');
+  sessionStorage.removeItem(SESSION_USER_KEY);
   appShell.classList.add('hidden');
   loginScreen.classList.remove('hidden');
   loginSenha.value = '';
@@ -116,13 +163,37 @@ loginForm.addEventListener('submit', (evento) => {
   const usuario = loginUsuario.value.trim();
   const senha = loginSenha.value;
 
-  if (!usuario || !senha) {
+  const conta = obterUsuarios()[usuario];
+  if (!conta || conta.senha !== senha) {
+    loginErro.textContent = 'Usuário ou senha inválidos. Crie uma conta para começar.';
     loginErro.classList.add('show');
     return;
   }
 
-  sessionStorage.setItem('checklist-inspecao-usuario', usuario);
+  sessionStorage.setItem(SESSION_USER_KEY, usuario);
   loginErro.classList.remove('show');
+  exibirAplicacao(usuario);
+});
+
+cadastroForm.addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const usuario = cadastroUsuario.value.trim();
+  const senha = cadastroSenha.value;
+  const usuarios = obterUsuarios();
+  if (usuario.length < 3 || senha.length < 4) {
+    cadastroErro.textContent = 'Use pelo menos 3 caracteres no usuário e 4 na senha.';
+    cadastroErro.classList.add('show');
+    return;
+  }
+  if (usuarios[usuario]) {
+    cadastroErro.textContent = 'Esse usuário já está cadastrado.';
+    cadastroErro.classList.add('show');
+    return;
+  }
+  usuarios[usuario] = { senha, gerente: cadastroGerente.checked };
+  localStorage.setItem(USERS_KEY, JSON.stringify(usuarios));
+  sessionStorage.setItem(SESSION_USER_KEY, usuario);
+  cadastroErro.classList.remove('show');
   exibirAplicacao(usuario);
 });
 
@@ -341,6 +412,7 @@ function criarDadosDemonstracao() {
 
 function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
   const categoriaSelecionada = filtroCategoriaRelatorio.value;
+  const veiculosComAcao = new Set();
   const linhas = registros.flatMap((registro) => (registro.itens || [])
     .filter((item) => categoriaSelecionada === 'todos' || item.categoria === categoriaSelecionada)
     .map((item) => {
@@ -351,13 +423,20 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
       const acao = bloqueado ? 'Liberar para rodar' : 'Bloquear veículo';
       const classeAcao = bloqueado ? 'release' : 'block';
       const valor = item.valor ? ` (${escaparHTML(item.valor)})` : '';
+      const exibirAcao = !veiculosComAcao.has(registro.veiculo);
+      veiculosComAcao.add(registro.veiculo);
+      const controleVeiculo = !exibirAcao
+        ? '—'
+        : bloqueado && !obterUsuarioAtual()?.gerente
+          ? '<span class="muted-copy">Somente gerente</span>'
+          : `<button class="report-action ${classeAcao}" type="button" data-status-action="${bloqueado ? 'liberar' : 'bloquear'}" data-veiculo="${escaparHTML(registro.veiculo)}">${acao}</button>`;
       return `<tr>
         <td>${escaparHTML(registro.veiculo)}</td>
         <td>${escaparHTML(item.nomeCategoria)}</td>
         <td>${escaparHTML(item.item)}${valor}</td>
         <td><span class="tag ${statusClasses[item.status] || 'wait'}">${statusLabels[item.status] || 'Pendente'}</span></td>
         <td><span class="tag ${bloqueado ? 'alert' : 'ok'}">${circulacao}</span></td>
-        <td><button class="report-action ${classeAcao}" type="button" data-status-action="${bloqueado ? 'liberar' : 'bloquear'}" data-veiculo="${escaparHTML(registro.veiculo)}">${acao}</button></td>
+        <td>${controleVeiculo}</td>
       </tr>`;
     }));
 
@@ -366,6 +445,10 @@ function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
 }
 
 function alternarStatusVeiculo(codigo, acao) {
+  if (acao === 'liberar' && !obterUsuarioAtual()?.gerente) {
+    window.alert('Apenas um gerente pode liberar um veículo bloqueado.');
+    return;
+  }
   const statusSalvos = obterStatusVeiculos();
   const registros = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
   const statusNovo = acao === 'bloquear' ? 'bloqueado' : 'liberado';
@@ -427,7 +510,7 @@ function atualizarStatusCategoria(card) {
     return;
   }
 
-  if (total === 0 || valores.includes('pendente') || oleo === 'pendente') {
+  if (valores.includes('pendente') || oleo === 'pendente') {
     badge.textContent = 'Pendente';
     badge.className = 'status-badge wait';
     return;
@@ -580,7 +663,7 @@ function restaurarEstadoFormulario() {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
   if (!saved) return;
 
-  numeroVeiculo.value = saved.numeroVeiculo || '';
+  numeroVeiculo.value = '';
   document.getElementById('pneu1').value = saved.pneu1 || '';
   document.getElementById('pneu2').value = saved.pneu2 || '';
   document.getElementById('pneu3').value = saved.pneu3 || '';
@@ -603,15 +686,8 @@ function restaurarEstadoFormulario() {
   });
   atualizarStatusCategorias();
 
-  if (numeroVeiculo.value.trim()) {
-    const veiculo = veiculos[numeroVeiculo.value.trim().toUpperCase()];
-    if (veiculo) {
-      veiculoInfo.classList.add('show');
-      veiculoNome.textContent = veiculo.nome;
-      faixaPressao.textContent = `${veiculo.pressaoMin} a ${veiculo.pressaoMax} PSI`;
-      statusVeiculo.textContent = 'Veículo identificado e pronto para inspeção';
-    }
-  }
+  // O rascunho pode ser restaurado, mas a identificação precisa ser feita novamente nesta sessão.
+  bloquearChecklistAteIdentificacao();
 }
 
 function registrarHistorico(status, bloqueado) {
@@ -702,8 +778,9 @@ function verificarItensObrigatorios() {
 }
 
 function validarChecklistCompleto() {
-  const veiculo = veiculos[numeroVeiculo.value.trim().toUpperCase()];
-  const veiculoValido = !!veiculo;
+  const codigoVeiculo = numeroVeiculo.value.trim().toUpperCase();
+  const veiculo = veiculos[codigoVeiculo];
+  const veiculoValido = !!veiculo && codigoVeiculo === veiculoIdentificadoCodigo;
   const camposPneu = ['pneu1', 'pneu2', 'pneu3', 'pneu4'].map((id) => document.getElementById(id));
   const pneusPreenchidos = camposPneu.every((campo) => campo.value !== '' && Number.isFinite(Number(campo.value)));
   const oleoSelecionado = document.querySelector('input[name="oleo"]:checked');
@@ -712,7 +789,7 @@ function validarChecklistCompleto() {
 
   if (!veiculoValido || !pneusPreenchidos || !oleoSelecionado || !itensCompletos || !operadorPreenchido) {
     if (!veiculoValido) {
-      mostrarErro(erroIdentificacao, 'Identifique um veículo cadastrado antes de finalizar.');
+      mostrarErro(erroIdentificacao, 'Identifique um veículo cadastrado antes de continuar o checklist.');
     }
     if (!pneusPreenchidos) {
       statusPneus.textContent = 'Informe a pressão medida nos quatro pneus para finalizar.';
@@ -759,22 +836,72 @@ function validarChecklistCompleto() {
   return true;
 }
 
+btnMostrarCadastroVeiculo.addEventListener('click', () => {
+  const aberto = cadastroVeiculoForm.classList.toggle('hidden');
+  btnMostrarCadastroVeiculo.setAttribute('aria-expanded', String(!aberto));
+});
+
+cadastroVeiculoForm.addEventListener('submit', (evento) => {
+  evento.preventDefault();
+  const codigo = document.getElementById('novoNumeroVeiculo').value.trim().toUpperCase();
+  const nome = document.getElementById('novoNomeVeiculo').value.trim();
+  const placa = document.getElementById('novaPlacaVeiculo').value.trim().toUpperCase();
+  const pressaoMin = Number(document.getElementById('novaPressaoMin').value);
+  const pressaoMax = Number(document.getElementById('novaPressaoMax').value);
+  const placasExistentes = Object.values(veiculos).map((veiculo) => veiculo.placa.toUpperCase());
+
+  if (Object.prototype.hasOwnProperty.call(veiculos, codigo)) {
+    erroCadastroVeiculo.textContent = 'Já existe um veículo com essa numeração.';
+    erroCadastroVeiculo.classList.add('show');
+    return;
+  }
+  if (placasExistentes.includes(placa)) {
+    erroCadastroVeiculo.textContent = 'Já existe um veículo cadastrado com essa placa.';
+    erroCadastroVeiculo.classList.add('show');
+    return;
+  }
+  if (!Number.isFinite(pressaoMin) || !Number.isFinite(pressaoMax) || pressaoMin >= pressaoMax) {
+    erroCadastroVeiculo.textContent = 'A pressão máxima precisa ser maior que a pressão mínima.';
+    erroCadastroVeiculo.classList.add('show');
+    return;
+  }
+
+  veiculos[codigo] = { nome, placa, pressaoMin, pressaoMax };
+  const veiculosPersonalizados = JSON.parse(localStorage.getItem(VEHICLES_KEY) || '{}');
+  veiculosPersonalizados[codigo] = veiculos[codigo];
+  localStorage.setItem(VEHICLES_KEY, JSON.stringify(veiculosPersonalizados));
+  erroCadastroVeiculo.classList.remove('show');
+  cadastroVeiculoForm.reset();
+  cadastroVeiculoForm.classList.add('hidden');
+  btnMostrarCadastroVeiculo.setAttribute('aria-expanded', 'false');
+  numeroVeiculo.value = codigo;
+  btnIdentificar.click();
+});
+
 btnIdentificar.addEventListener('click', () => {
   const codigo = numeroVeiculo.value.trim().toUpperCase();
   const veiculo = veiculos[codigo];
 
   if (!veiculo) {
     mostrarErro(erroIdentificacao, 'Veículo não cadastrado. Informe uma numeração válida para continuar.');
-    veiculoInfo.classList.remove('show');
+    bloquearChecklistAteIdentificacao();
     return;
   }
 
   ocultarErro(erroIdentificacao);
   veiculoInfo.classList.add('show');
   veiculoNome.textContent = veiculo.nome;
+  document.getElementById('veiculoPlaca').textContent = veiculo.placa;
   faixaPressao.textContent = `${veiculo.pressaoMin} a ${veiculo.pressaoMax} PSI`;
   statusVeiculo.textContent = 'Veículo identificado e pronto para inspeção';
+  liberarChecklistIdentificado(codigo);
   salvarEstadoFormulario();
+});
+
+numeroVeiculo.addEventListener('input', () => {
+  if (numeroVeiculo.value.trim().toUpperCase() !== veiculoIdentificadoCodigo) {
+    bloquearChecklistAteIdentificacao();
+  }
 });
 
 [
@@ -839,6 +966,7 @@ relatorioItensBody.addEventListener('click', (evento) => {
   }
 });
 btnImprimirRelatorio.addEventListener('click', () => window.print());
+bloquearChecklistAteIdentificacao();
 atualizarStatusCategorias();
 trocarCategoria('todos');
 renderizarIrregularidades();
@@ -846,7 +974,7 @@ atualizarRelatorio();
 restaurarEstadoFormulario();
 atualizarDataHora();
 
-const usuarioDaSessao = sessionStorage.getItem('checklist-inspecao-usuario');
+const usuarioDaSessao = sessionStorage.getItem(SESSION_USER_KEY);
 if (usuarioDaSessao) {
   exibirAplicacao(usuarioDaSessao);
 }
