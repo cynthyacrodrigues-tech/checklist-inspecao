@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'checklist-inspecao-state';
+const DRAFTS_STORAGE_KEY = 'checklist-inspecao-drafts';
 // Remove credenciais em texto puro guardadas por versões antigas do protótipo.
 localStorage.removeItem('checklist-inspecao-usuarios');
 sessionStorage.removeItem('checklist-inspecao-usuario');
@@ -67,6 +68,10 @@ const erroFinal = document.getElementById('erroFinal');
 const btnFinalizar = document.getElementById('btnFinalizar');
 const avisoCorrecaoInspecao = document.getElementById('avisoCorrecaoInspecao');
 const btnSalvar = document.getElementById('btnSalvar');
+const btnVerRascunhos = document.getElementById('btnVerRascunhos');
+const rascunhosSalvos = document.getElementById('rascunhosSalvos');
+const listaRascunhos = document.getElementById('listaRascunhos');
+const rascunhosVazio = document.getElementById('rascunhosVazio');
 const totalInspecoes = document.getElementById('totalInspecoes');
 const totalIrregularidades = document.getElementById('totalIrregularidades');
 const totalEmAndamento = document.getElementById('totalEmAndamento');
@@ -866,11 +871,55 @@ function salvarEstadoFormulario() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(coletarEstadoFormulario()));
 }
 
-function restaurarEstadoFormulario() {
-  const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+function obterRascunhosSalvos() {
+  try {
+    const rascunhos = JSON.parse(localStorage.getItem(DRAFTS_STORAGE_KEY) || '[]');
+    return Array.isArray(rascunhos) ? rascunhos : [];
+  } catch {
+    return [];
+  }
+}
+
+function salvarRascunhoNaLista() {
+  const estado = coletarEstadoFormulario();
+  const codigo = estado.numeroVeiculo.trim().toUpperCase();
+  const rascunhos = obterRascunhosSalvos();
+  rascunhos.unshift({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    codigo,
+    nomeVeiculo: veiculos[codigo]?.nome || '',
+    salvoEm: new Date().toISOString(),
+    estado
+  });
+  localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(rascunhos));
+  salvarEstadoFormulario();
+  renderizarRascunhosSalvos();
+  rascunhosSalvos.classList.remove('hidden');
+  btnVerRascunhos.setAttribute('aria-expanded', 'true');
+}
+
+function renderizarRascunhosSalvos() {
+  const rascunhos = obterRascunhosSalvos().sort((a, b) => Date.parse(b.salvoEm) - Date.parse(a.salvoEm));
+  rascunhosVazio.classList.toggle('hidden', rascunhos.length > 0);
+  listaRascunhos.innerHTML = rascunhos.map((rascunho) => {
+    const nome = rascunho.nomeVeiculo || (rascunho.codigo ? `Veículo ${rascunho.codigo}` : 'Checklist sem veículo');
+    const data = new Date(rascunho.salvoEm).toLocaleString('pt-BR');
+    return `<article class="saved-draft-card">
+      <div><strong>${escaparHTML(nome)}</strong><span>${escaparHTML(data)}</span></div>
+      <div class="saved-draft-actions">
+        <button class="secondary-button" type="button" data-abrir-rascunho="${escaparHTML(rascunho.id)}">Abrir</button>
+        <button class="secondary-button" type="button" data-excluir-rascunho="${escaparHTML(rascunho.id)}">Excluir</button>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+function restaurarEstadoFormulario(estadoSalvo = null, manterVeiculo = false) {
+  const saved = estadoSalvo || JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
   if (!saved) return;
 
-  numeroVeiculo.value = '';
+  numeroVeiculo.value = manterVeiculo ? saved.numeroVeiculo || '' : '';
+  atualizarBotaoEditarVeiculoSelecionado();
   document.getElementById('pneu1').value = saved.pneu1 || '';
   document.getElementById('pneu2').value = saved.pneu2 || '';
   document.getElementById('pneu3').value = saved.pneu3 || '';
@@ -1341,10 +1390,37 @@ tabButtons.forEach((botao) => {
 });
 
 btnSalvar.addEventListener('click', () => {
-  salvarEstadoFormulario();
+  salvarRascunhoNaLista();
   resultadoFinal.textContent = 'Rascunho salvo com sucesso.';
   resultadoFinal.classList.add('show');
   erroFinal.classList.remove('show');
+});
+
+btnVerRascunhos.addEventListener('click', () => {
+  const aberto = rascunhosSalvos.classList.toggle('hidden') === false;
+  btnVerRascunhos.setAttribute('aria-expanded', String(aberto));
+  if (aberto) renderizarRascunhosSalvos();
+});
+
+listaRascunhos.addEventListener('click', (evento) => {
+  const botaoAbrir = evento.target.closest('[data-abrir-rascunho]');
+  const botaoExcluir = evento.target.closest('[data-excluir-rascunho]');
+  const id = botaoAbrir?.dataset.abrirRascunho || botaoExcluir?.dataset.excluirRascunho;
+  if (!id) return;
+
+  const rascunhos = obterRascunhosSalvos();
+  if (botaoAbrir) {
+    const rascunho = rascunhos.find((item) => item.id === id);
+    if (!rascunho) return;
+    restaurarEstadoFormulario(rascunho.estado, true);
+    trocarAba('checklist');
+    if (rascunho.estado.numeroVeiculo) btnIdentificar.click();
+    else numeroVeiculo.focus();
+    return;
+  }
+
+  localStorage.setItem(DRAFTS_STORAGE_KEY, JSON.stringify(rascunhos.filter((item) => item.id !== id)));
+  renderizarRascunhosSalvos();
 });
 
 btnFinalizar.addEventListener('click', validarChecklistCompleto);

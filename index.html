@@ -71,6 +71,12 @@
               </div>
               <button id="btnEditarVeiculoSelecionado" class="secondary-button hidden" type="button">Editar veículo selecionado</button>
               <button id="btnMostrarCadastroVeiculo" class="secondary-button" type="button" aria-expanded="false">Cadastrar veículo</button>
+              <button id="btnVerRascunhos" class="secondary-button" type="button" aria-expanded="false">Rascunhos salvos</button>
+              <section id="rascunhosSalvos" class="saved-drafts hidden" aria-label="Rascunhos salvos">
+                <h3>Rascunhos salvos neste navegador</h3>
+                <div id="listaRascunhos"></div>
+                <p id="rascunhosVazio" class="muted-copy hidden">Nenhum rascunho salvo.</p>
+              </section>
               <form id="cadastroVeiculoForm" class="vehicle-registration hidden">
                 <h3 id="tituloCadastroVeiculo">Novo veículo</h3>
                 <div class="field-row">
@@ -203,12 +209,16 @@
                     <span class="status-badge wait">Pendente</span>
                   </div>
 
-                  <label for="oleo">Condição do fluido do motor</label>
-                  <select id="oleo">
-                    <option value="pendente">Pendente</option>
-                    <option value="ok">Regular</option>
-                    <option value="irregular">Irregular</option>
-                  </select>
+                  <ul class="checklist">
+                    <li>
+                      <select id="oleo" aria-label="Status do item: Fluido do motor">
+                        <option value="pendente">Pendente</option>
+                        <option value="ok">Regular</option>
+                        <option value="irregular">Irregular</option>
+                      </select>
+                      Fluido do motor
+                    </li>
+                  </ul>
                   <div id="statusOleo" class="status warning">Informe se o fluido do motor está regular ou irregular.</div>
 
                 </div>

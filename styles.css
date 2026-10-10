@@ -739,6 +739,54 @@ th {
   flex: 1 1 140px;
 }
 
+.saved-drafts {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8fbfb;
+}
+
+.saved-drafts h3 {
+  margin: 0 0 12px;
+  color: var(--primary-dark);
+}
+
+#listaRascunhos {
+  display: grid;
+  gap: 10px;
+}
+
+.saved-draft-card,
+.saved-draft-card > div:first-child,
+.saved-draft-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.saved-draft-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.saved-draft-card > div:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.saved-draft-card span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.saved-draft-actions button {
+  padding: 8px 12px;
+}
+
 .secondary-button {
   background: #eef4ff;
   color: var(--primary-dark);
