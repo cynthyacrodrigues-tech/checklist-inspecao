@@ -805,6 +805,26 @@ th {
   min-width: 240px;
 }
 
+.report-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.report-filters > div {
+  min-width: 170px;
+}
+
+.report-filters label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.report-filters select {
+  width: 100%;
+}
+
 .table-scroll {
   overflow-x: auto;
 }
@@ -942,6 +962,19 @@ tbody tr:hover {
 
 .secondary-button:hover {
   background: #dceeee;
+}
+
+.correction-notice {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #cfe0ff;
+  border-radius: 10px;
+  background: #eef4ff;
+  color: var(--primary-dark);
+}
+
+.correction-button {
+  white-space: nowrap;
 }
 
 .finalization-card {

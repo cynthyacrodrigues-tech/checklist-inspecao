@@ -298,6 +298,7 @@
         <section id="finalizacaoInspecaoCard" class="card finalization-card hidden">
           <h2>Finalização da inspeção</h2>
           <p>Revise os dados e os itens obrigatórios antes de concluir o checklist.</p>
+          <p id="avisoCorrecaoInspecao" class="correction-notice hidden" role="status"></p>
           <div style="margin-top: 18px;">
             <label for="observacoes">Observações da inspeção</label>
             <textarea id="observacoes" rows="4" placeholder="Registre irregularidades, ações necessárias ou outras observações relevantes."></textarea>
@@ -338,6 +339,7 @@
                 <th>Data</th>
                 <th>Status</th>
                 <th>Circulação</th>
+                <th>Correção</th>
               </tr>
             </thead>
             <tbody id="relatorioBody"></tbody>
@@ -349,7 +351,20 @@
                 <h3>Relatório de itens por categoria</h3>
                 <p>Consulte o resultado de cada item e controle a liberação do veículo.</p>
               </div>
-              <div>
+              <div class="report-filters">
+                <div>
+                  <label for="filtroVeiculoRelatorio">Veículo</label>
+                  <select id="filtroVeiculoRelatorio">
+                    <option value="todos">Todos os veículos</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="filtroItemRelatorio">Item</label>
+                  <select id="filtroItemRelatorio">
+                    <option value="todos">Todos os itens</option>
+                  </select>
+                </div>
+                <div>
                 <label for="filtroCategoriaRelatorio">Categoria</label>
                 <select id="filtroCategoriaRelatorio">
                   <option value="todos">Todas as categorias</option>
@@ -360,6 +375,7 @@
                   <option value="seguranca">Segurança do operador</option>
                   <option value="geral">Checklist geral</option>
                 </select>
+                </div>
               </div>
               <button id="btnImprimirRelatorio" class="secondary-button" type="button">Imprimir relatório</button>
             </div>

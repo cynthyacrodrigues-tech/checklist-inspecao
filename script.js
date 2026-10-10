@@ -9,6 +9,8 @@ const supabaseClient = window.supabase?.createClient && window.SUPABASE_URL && w
 let veiculos = {};
 let usuarioAtual = null;
 let registrosRelatorio = [];
+let inspecaoEmCorrecao = null;
+const PRAZO_CORRECAO_INSPECAO_MS = 10 * 60 * 1000;
 
 const irregularidadesPorVeiculo = [
   {
@@ -61,6 +63,7 @@ const horaAtual = document.getElementById('horaAtual');
 const resultadoFinal = document.getElementById('resultadoFinal');
 const erroFinal = document.getElementById('erroFinal');
 const btnFinalizar = document.getElementById('btnFinalizar');
+const avisoCorrecaoInspecao = document.getElementById('avisoCorrecaoInspecao');
 const btnSalvar = document.getElementById('btnSalvar');
 const totalInspecoes = document.getElementById('totalInspecoes');
 const totalIrregularidades = document.getElementById('totalIrregularidades');
@@ -69,6 +72,8 @@ const relatorioBody = document.getElementById('relatorioBody');
 const relatorioItensBody = document.getElementById('relatorioItensBody');
 const relatorioVazio = document.getElementById('relatorioVazio');
 const filtroCategoriaRelatorio = document.getElementById('filtroCategoriaRelatorio');
+const filtroVeiculoRelatorio = document.getElementById('filtroVeiculoRelatorio');
+const filtroItemRelatorio = document.getElementById('filtroItemRelatorio');
 const btnImprimirRelatorio = document.getElementById('btnImprimirRelatorio');
 const loginScreen = document.getElementById('loginScreen');
 const loginForm = document.getElementById('loginForm');
@@ -327,20 +332,23 @@ async function atualizarRelatorio() {
   if (!supabaseClient || !usuarioAtual) return;
   const { data, error } = await supabaseClient
     .from('inspecoes')
-    .select('id_inspecao, data_da_inspecao, resultado, veiculo_bloqueado, observacoes, veiculos(codigo, situacao), usuarios(nome_de_usuario), itens_inspecao(categoria, nome_item, valor, resultado, item_critico)')
+    .select('id_inspecao, id_usuario, data_da_inspecao, resultado, veiculo_bloqueado, observacoes, veiculos(codigo, situacao), usuarios(nome_de_usuario), itens_inspecao(categoria, nome_item, valor, resultado, item_critico)')
     .order('data_da_inspecao', { ascending: false });
   if (error) {
-    relatorioBody.innerHTML = `<tr><td colspan="5">${escaparHTML(error.message)}</td></tr>`;
+    relatorioBody.innerHTML = `<tr><td colspan="6">${escaparHTML(error.message)}</td></tr>`;
     relatorioItensBody.innerHTML = '';
     return;
   }
   const traduzirResultado = (resultado) => resultado === 'regular' ? 'ok' : resultado;
   registrosRelatorio = (data || []).map((linha) => ({
     id: linha.id_inspecao,
+    idUsuario: linha.id_usuario,
+    dataCriacao: linha.data_da_inspecao,
     veiculo: linha.veiculos?.codigo || '',
     operador: linha.usuarios?.nome_de_usuario || '',
     data: new Date(linha.data_da_inspecao).toLocaleString('pt-BR'),
     status: traduzirResultado(linha.resultado),
+    observacoes: linha.observacoes || '',
     bloqueado: linha.veiculos?.situacao === 'bloqueado',
     itens: (linha.itens_inspecao || []).map((item) => ({
       categoria: item.categoria,
@@ -351,7 +359,40 @@ async function atualizarRelatorio() {
       critico: item.item_critico
     }))
   }));
-  const registros = registrosRelatorio;
+  preencherFiltrosRelatorio(registrosRelatorio);
+  renderizarVisaoRelatorio();
+}
+
+function preencherFiltrosRelatorio(registros) {
+  const manterVeiculo = filtroVeiculoRelatorio.value;
+  const manterItem = filtroItemRelatorio.value;
+  const veiculosRelatorio = [...new Set(registros.map((registro) => registro.veiculo).filter(Boolean))].sort();
+  const itensRelatorio = [...new Set(registros.flatMap((registro) => registro.itens.map((item) => item.item)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  filtroVeiculoRelatorio.innerHTML = '<option value="todos">Todos os veículos</option>' + veiculosRelatorio
+    .map((codigo) => `<option value="${escaparHTML(codigo)}">${escaparHTML(codigo)}</option>`).join('');
+  filtroItemRelatorio.innerHTML = '<option value="todos">Todos os itens</option>' + itensRelatorio
+    .map((item) => `<option value="${escaparHTML(item)}">${escaparHTML(item)}</option>`).join('');
+  filtroVeiculoRelatorio.value = veiculosRelatorio.includes(manterVeiculo) ? manterVeiculo : 'todos';
+  filtroItemRelatorio.value = itensRelatorio.includes(manterItem) ? manterItem : 'todos';
+}
+
+function obterRegistrosFiltradosRelatorio() {
+  const veiculoSelecionado = filtroVeiculoRelatorio.value;
+  const itemSelecionado = filtroItemRelatorio.value;
+  const categoriaSelecionada = filtroCategoriaRelatorio.value;
+  return registrosRelatorio.flatMap((registro) => {
+    if (veiculoSelecionado !== 'todos' && registro.veiculo !== veiculoSelecionado) return [];
+    const itens = registro.itens.filter((item) =>
+      (itemSelecionado === 'todos' || item.item === itemSelecionado) &&
+      (categoriaSelecionada === 'todos' || item.categoria === categoriaSelecionada)
+    );
+    if ((itemSelecionado !== 'todos' || categoriaSelecionada !== 'todos') && itens.length === 0) return [];
+    return [{ ...registro, itens }];
+  });
+}
+
+function renderizarVisaoRelatorio() {
+  const registros = obterRegistrosFiltradosRelatorio();
 
   const total = registros.length;
   const irregular = registros.filter((item) => item.status === 'irregular').length;
@@ -368,6 +409,13 @@ async function atualizarRelatorio() {
         : item.status === 'irregular'
           ? '<span class="tag alert">Irregular</span>'
           : '<span class="tag wait">Pendente</span>';
+      const ehDoUsuarioAtual = String(item.idUsuario) === String(usuarioAtual?.id_usuario);
+      const prazoAberto = Date.now() < Date.parse(item.dataCriacao) + PRAZO_CORRECAO_INSPECAO_MS;
+      const acaoCorrecao = ehDoUsuarioAtual && prazoAberto
+        ? `<button class="secondary-button correction-button" type="button" data-corrigir-inspecao="${escaparHTML(item.id)}" aria-label="Editar checklist do veículo ${escaparHTML(item.veiculo)}">Editar checklist</button>`
+        : ehDoUsuarioAtual
+          ? '<span class="muted-copy">Prazo encerrado</span>'
+          : '—';
 
       return `
         <tr>
@@ -376,6 +424,7 @@ async function atualizarRelatorio() {
           <td>${escaparHTML(item.data)}</td>
           <td>${badge}</td>
           <td>${renderizarStatusCirculacao(item.veiculo, registros)}</td>
+          <td>${acaoCorrecao}</td>
         </tr>
       `;
     })
@@ -528,15 +577,13 @@ function criarDadosDemonstracao() {
   ];
 }
 
-function renderizarRelatorioItens(registros = criarDadosDemonstracao()) {
-  const categoriaSelecionada = filtroCategoriaRelatorio.value;
+function renderizarRelatorioItens(registros = obterRegistrosFiltradosRelatorio()) {
   const veiculosComAcao = new Set();
   const linhas = registros.flatMap((registro) => (registro.itens || [])
-    .filter((item) => categoriaSelecionada === 'todos' || item.categoria === categoriaSelecionada)
     .map((item) => {
       const statusLabels = { ok: 'OK', irregular: 'Irregular', pendente: 'Pendente' };
       const statusClasses = { ok: 'ok', irregular: 'alert', pendente: 'wait' };
-      const bloqueado = veiculoEstaBloqueado(registro.veiculo, registros);
+      const bloqueado = veiculoEstaBloqueado(registro.veiculo, registrosRelatorio);
       const circulacao = bloqueado ? 'Bloqueado' : 'Liberado';
       const acao = bloqueado ? 'Liberar para rodar' : 'Bloquear veículo';
       const classeAcao = bloqueado ? 'release' : 'block';
@@ -808,38 +855,125 @@ function restaurarEstadoFormulario() {
   bloquearChecklistAteIdentificacao();
 }
 
+function limparChecklistAposSalvar() {
+  ['pneu1', 'pneu2', 'pneu3', 'pneu4'].forEach((id) => {
+    document.getElementById(id).value = '';
+  });
+  document.querySelectorAll('input[name="oleo"]').forEach((radio) => {
+    radio.checked = false;
+  });
+  document.querySelectorAll('.item-obrigatorio').forEach((item) => {
+    item.value = 'pendente';
+  });
+  observacoes.value = '';
+  numeroVeiculo.value = '';
+  bloquearChecklistAteIdentificacao();
+  ocultarErro(erroIdentificacao);
+  ocultarErro(erroFinal);
+  resultadoFinal.classList.remove('show');
+  statusPneus.textContent = 'Informe a pressão correta de cada pneu.';
+  statusPneus.className = 'status warning';
+  statusOleo.textContent = 'Selecione o nível de óleo verificado.';
+  statusOleo.className = 'status warning';
+  localStorage.removeItem(STORAGE_KEY);
+  inspecaoEmCorrecao = null;
+  btnFinalizar.textContent = '✓ Finalizar checklist';
+  avisoCorrecaoInspecao.classList.add('hidden');
+  atualizarStatusCategorias();
+  numeroVeiculo.focus();
+}
+
 async function registrarHistorico(status, bloqueado) {
   const codigo = numeroVeiculo.value.trim().toUpperCase();
-  const { data: inspecao, error } = await supabaseClient
-    .from('inspecoes')
-    .insert({
-      id_veiculo: veiculos[codigo].id,
-      id_usuario: usuarioAtual.id_usuario,
-      resultado: status === 'ok' ? 'regular' : status,
-      veiculo_bloqueado: bloqueado,
-      observacoes: observacoes.value.trim() || null
-    })
-    .select('id_inspecao')
-    .single();
-  if (error) throw error;
-
   const itens = coletarItensInspecao().map((item) => ({
-    id_inspecao: inspecao.id_inspecao,
     categoria: item.categoria,
     nome_item: item.item,
     valor: item.valor || null,
     resultado: item.status === 'ok' ? 'regular' : item.status,
     item_critico: item.critico
   }));
-  const { error: itensError } = await supabaseClient.from('itens_inspecao').insert(itens);
-  if (itensError) throw itensError;
-
-  const { error: veiculoError } = await supabaseClient.rpc('alterar_situacao_veiculo', {
-    codigo_veiculo: codigo,
-    nova_situacao: bloqueado ? 'bloqueado' : 'liberado'
-  });
-  if (veiculoError) throw veiculoError;
+  const parametros = {
+    p_resultado: status === 'ok' ? 'regular' : status,
+    p_veiculo_bloqueado: bloqueado,
+    p_observacoes: observacoes.value.trim() || null,
+    p_itens: itens
+  };
+  const { error } = inspecaoEmCorrecao
+    ? await supabaseClient.rpc('corrigir_inspecao', {
+      ...parametros,
+      p_inspecao_id: inspecaoEmCorrecao.id
+    })
+    : await supabaseClient.rpc('salvar_inspecao', {
+      ...parametros,
+      p_codigo_veiculo: codigo
+    });
+  if (error) throw error;
   veiculos[codigo].situacao = bloqueado ? 'bloqueado' : 'liberado';
+  renderizarVeiculos();
+}
+
+async function iniciarCorrecaoInspecao(id) {
+  const registro = registrosRelatorio.find((item) => String(item.id) === String(id));
+  const prazoFinal = registro ? Date.parse(registro.dataCriacao) + PRAZO_CORRECAO_INSPECAO_MS : 0;
+  if (!registro || String(registro.idUsuario) !== String(usuarioAtual?.id_usuario) || Date.now() >= prazoFinal) {
+    window.alert('Este checklist não pode mais ser corrigido. O prazo é de 10 minutos após o salvamento.');
+    await atualizarRelatorio();
+    return;
+  }
+  const veiculo = veiculos[registro.veiculo];
+  if (!veiculo) {
+    window.alert('O veículo desta inspeção não está disponível no cadastro.');
+    return;
+  }
+
+  inspecaoEmCorrecao = { id: registro.id, prazoFinal };
+  ['pneu1', 'pneu2', 'pneu3', 'pneu4'].forEach((idPneu) => {
+    document.getElementById(idPneu).value = '';
+  });
+  document.querySelectorAll('input[name="oleo"]').forEach((radio) => { radio.checked = false; });
+  document.querySelectorAll('.item-obrigatorio').forEach((campo) => { campo.value = 'pendente'; });
+  numeroVeiculo.value = registro.veiculo;
+  veiculoInfo.classList.add('show');
+  veiculoNome.textContent = veiculo.nome;
+  document.getElementById('veiculoPlaca').textContent = veiculo.placa;
+  faixaPressao.textContent = `${veiculo.pressaoMin} a ${veiculo.pressaoMax} PSI`;
+  statusVeiculo.textContent = 'Corrigindo checklist salvo';
+  liberarChecklistIdentificado(registro.veiculo);
+
+  const pneus = {
+    'Pneu dianteiro esquerdo': 'pneu1',
+    'Pneu dianteiro direito': 'pneu2',
+    'Pneu traseiro esquerdo': 'pneu3',
+    'Pneu traseiro direito': 'pneu4'
+  };
+  registro.itens.forEach((item) => {
+    if (pneus[item.item]) {
+      document.getElementById(pneus[item.item]).value = Number.parseFloat(item.valor) || '';
+      return;
+    }
+    if (item.item === 'Nível de óleo') {
+      const valorOleo = item.status === 'ok' ? 'adequado' : item.status === 'irregular' ? 'inadequado' : '';
+      document.querySelectorAll('input[name="oleo"]').forEach((radio) => { radio.checked = radio.value === valorOleo; });
+      return;
+    }
+    const seletor = Array.from(document.querySelectorAll('.item-obrigatorio')).find((campo) =>
+      campo.closest('.category-card')?.dataset.category === item.categoria &&
+      obterRotuloItem(campo.closest('li')) === item.item
+    );
+    if (seletor) seletor.value = item.status === 'regular' ? 'ok' : item.status;
+  });
+  observacoes.value = registro.observacoes;
+  btnFinalizar.textContent = 'Salvar correção';
+  avisoCorrecaoInspecao.textContent = `Você pode corrigir este checklist até ${new Date(prazoFinal).toLocaleTimeString('pt-BR')}.`;
+  avisoCorrecaoInspecao.classList.remove('hidden');
+  ocultarErro(erroIdentificacao);
+  ocultarErro(erroFinal);
+  resultadoFinal.classList.remove('show');
+  atualizarStatusCategorias();
+  validarPneus();
+  validarOleo();
+  trocarAba('checklist');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function validarPneus() {
@@ -963,12 +1097,12 @@ async function validarChecklistCompleto() {
   statusGeralBadge.textContent = statusInspecao === 'ok' ? 'OK' : 'Irregular';
   statusGeralBadge.className = `status-badge ${statusInspecao === 'ok' ? 'ok' : 'alert'}`;
   statusGeralTexto.textContent = bloqueiaVeiculo
-    ? 'Irregularidade que impede a circulação. Veículo bloqueado até liberação.'
+    ? 'Checklist salvo e campos limpos. Irregularidade que impede a circulação; veículo bloqueado até liberação.'
     : statusInspecao === 'irregular'
-      ? 'Há item não crítico irregular. Veículo liberado para rodar.'
-      : 'Inspeção sem irregularidades. Veículo liberado para rodar.';
+      ? 'Checklist salvo e campos limpos. Há item não crítico irregular; veículo liberado para rodar.'
+      : 'Checklist salvo e campos limpos. Inspeção sem irregularidades; veículo liberado para rodar.';
+  limparChecklistAposSalvar();
   await atualizarRelatorio();
-  salvarEstadoFormulario();
   return true;
 }
 
@@ -1158,14 +1292,18 @@ btnSalvar.addEventListener('click', () => {
 });
 
 btnFinalizar.addEventListener('click', validarChecklistCompleto);
-filtroCategoriaRelatorio.addEventListener('change', () => {
-  renderizarRelatorioItens(registrosRelatorio);
+[filtroCategoriaRelatorio, filtroVeiculoRelatorio, filtroItemRelatorio].forEach((filtro) => {
+  filtro.addEventListener('change', renderizarVisaoRelatorio);
 });
 relatorioItensBody.addEventListener('click', (evento) => {
   const botao = evento.target.closest('[data-status-action]');
   if (botao) {
     alternarStatusVeiculo(botao.dataset.veiculo, botao.dataset.statusAction);
   }
+});
+relatorioBody.addEventListener('click', (evento) => {
+  const botao = evento.target.closest('[data-corrigir-inspecao]');
+  if (botao) iniciarCorrecaoInspecao(botao.dataset.corrigirInspecao);
 });
 btnImprimirRelatorio.addEventListener('click', () => window.print());
 bloquearChecklistAteIdentificacao();
