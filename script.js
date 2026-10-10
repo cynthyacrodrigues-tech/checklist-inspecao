@@ -75,6 +75,7 @@ const relatorioVazio = document.getElementById('relatorioVazio');
 const filtroCategoriaRelatorio = document.getElementById('filtroCategoriaRelatorio');
 const filtroVeiculoRelatorio = document.getElementById('filtroVeiculoRelatorio');
 const filtroItemRelatorio = document.getElementById('filtroItemRelatorio');
+const filtroDataRelatorio = document.getElementById('filtroDataRelatorio');
 const btnImprimirRelatorio = document.getElementById('btnImprimirRelatorio');
 const loginScreen = document.getElementById('loginScreen');
 const loginForm = document.getElementById('loginForm');
@@ -396,21 +397,37 @@ function preencherFiltrosRelatorio(registros) {
   const manterVeiculo = filtroVeiculoRelatorio.value;
   const manterItem = filtroItemRelatorio.value;
   const veiculosRelatorio = [...new Set(registros.map((registro) => registro.veiculo).filter(Boolean))].sort();
-  const itensRelatorio = [...new Set(registros.flatMap((registro) => registro.itens.map((item) => item.item)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const itensPorCategoria = new Map();
+  registros.forEach((registro) => registro.itens.forEach((item) => {
+    if (!item.item) return;
+    if (!itensPorCategoria.has(item.categoria)) itensPorCategoria.set(item.categoria, new Set());
+    itensPorCategoria.get(item.categoria).add(item.item);
+  }));
   filtroVeiculoRelatorio.innerHTML = '<option value="todos">Todos os veículos</option>' + veiculosRelatorio
     .map((codigo) => `<option value="${escaparHTML(codigo)}">${escaparHTML(codigo)}</option>`).join('');
-  filtroItemRelatorio.innerHTML = '<option value="todos">Todos os itens</option>' + itensRelatorio
-    .map((item) => `<option value="${escaparHTML(item)}">${escaparHTML(item)}</option>`).join('');
+  const gruposItens = [...itensPorCategoria.entries()]
+    .sort(([categoriaA], [categoriaB]) => nomeCategoria(categoriaA).localeCompare(nomeCategoria(categoriaB), 'pt-BR'))
+    .map(([categoria, itens]) => `<optgroup label="${escaparHTML(nomeCategoria(categoria))}">${[...itens]
+      .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+      .map((item) => `<option value="${escaparHTML(item)}">${escaparHTML(item)}</option>`).join('')}</optgroup>`)
+    .join('');
+  filtroItemRelatorio.innerHTML = '<option value="todos">Todos os itens</option>' + gruposItens;
   filtroVeiculoRelatorio.value = veiculosRelatorio.includes(manterVeiculo) ? manterVeiculo : 'todos';
-  filtroItemRelatorio.value = itensRelatorio.includes(manterItem) ? manterItem : 'todos';
+  filtroItemRelatorio.value = [...itensPorCategoria.values()].some((itens) => itens.has(manterItem)) ? manterItem : 'todos';
 }
 
 function obterRegistrosFiltradosRelatorio() {
   const veiculoSelecionado = filtroVeiculoRelatorio.value;
   const itemSelecionado = filtroItemRelatorio.value;
   const categoriaSelecionada = filtroCategoriaRelatorio.value;
+  const dataSelecionada = filtroDataRelatorio.value;
   return registrosRelatorio.flatMap((registro) => {
     if (veiculoSelecionado !== 'todos' && registro.veiculo !== veiculoSelecionado) return [];
+    if (dataSelecionada) {
+      const dataInspecao = new Date(registro.dataCriacao);
+      const dataLocal = [dataInspecao.getFullYear(), String(dataInspecao.getMonth() + 1).padStart(2, '0'), String(dataInspecao.getDate()).padStart(2, '0')].join('-');
+      if (dataLocal !== dataSelecionada) return [];
+    }
     const itens = registro.itens.filter((item) =>
       (itemSelecionado === 'todos' || item.item === itemSelecionado) &&
       (categoriaSelecionada === 'todos' || item.categoria === categoriaSelecionada)
@@ -470,12 +487,19 @@ function nomeCategoria(categoria) {
 }
 
 function renderizarIrregularidadesDoBanco(registros) {
-  const irregularidades = registros.flatMap((registro) => registro.itens
-    .filter((item) => item.status === 'irregular')
-    .map((item) => ({ veiculo: registro.veiculo, item })));
+  const irregularidadesPorChecklist = registros.map((registro) => ({
+    ...registro,
+    itensIrregulares: registro.itens.filter((item) => item.status === 'irregular')
+  })).filter((registro) => registro.itensIrregulares.length > 0);
+  const totalIrregularidades = irregularidadesPorChecklist.reduce((total, registro) => total + registro.itensIrregulares.length, 0);
+  const totalVeiculos = new Set(irregularidadesPorChecklist.map((registro) => registro.veiculo)).size;
+  const contagem = document.getElementById('resumoIrregularidadesContagem');
+  contagem.textContent = totalIrregularidades
+    ? `${totalIrregularidades} item(ns) irregular(es) em ${totalVeiculos} veículo(s).`
+    : 'Nenhum item irregular nos filtros selecionados.';
   const container = document.getElementById('listaIrregularidades');
-  container.innerHTML = irregularidades.length
-    ? irregularidades.map(({ veiculo, item }) => `<div class="issue-card"><h3>${escaparHTML(veiculo)} - ${escaparHTML(item.nomeCategoria)}</h3><ul><li>${escaparHTML(item.item)}${item.valor ? ` (${escaparHTML(item.valor)})` : ''}</li></ul></div>`).join('')
+  container.innerHTML = irregularidadesPorChecklist.length
+    ? irregularidadesPorChecklist.map((registro) => `<div class="issue-card"><h3>${escaparHTML(registro.veiculo)} — ${escaparHTML(registro.data || '')}</h3><ul>${registro.itensIrregulares.map((item) => `<li><strong>${escaparHTML(item.nomeCategoria)}:</strong> ${escaparHTML(item.item)}${item.valor ? ` (${escaparHTML(item.valor)})` : ''}</li>`).join('')}</ul></div>`).join('')
     : '<div class="issue-card"><h3>Nenhuma irregularidade</h3><p>Não há itens irregulares registrados.</p></div>';
 }
 
@@ -624,6 +648,7 @@ function renderizarRelatorioItens(registros = obterRegistrosFiltradosRelatorio()
         : `<button class="report-action ${classeAcao}" type="button" data-status-action="${bloqueado ? 'liberar' : 'bloquear'}" data-veiculo="${escaparHTML(registro.veiculo)}">${acao}</button>`;
       return `<tr>
         <td>${escaparHTML(registro.veiculo)}</td>
+        <td>${escaparHTML(registro.data || '')}</td>
         <td>${escaparHTML(item.nomeCategoria)}</td>
         <td>${escaparHTML(item.item)}${valor}</td>
         <td><span class="tag ${statusClasses[item.status] || 'wait'}">${statusLabels[item.status] || 'Pendente'}</span></td>
@@ -1072,6 +1097,24 @@ function verificarItensObrigatorios() {
   return Array.from(itens).every((item) => item.value !== 'pendente');
 }
 
+function levarAoPrimeiroCampoPendente({ veiculoValido, camposPneu, oleoSelecionado }) {
+  let campo = null;
+  if (!veiculoValido) {
+    campo = numeroVeiculo;
+  } else {
+    campo = camposPneu.find((pneu) => pneu.value === '');
+    if (!campo && !oleoSelecionado) campo = document.querySelector('input[name="oleo"]');
+    if (!campo) campo = Array.from(document.querySelectorAll('.item-obrigatorio'))
+      .find((item) => item.value === 'pendente');
+  }
+  if (!campo) return;
+
+  const categoria = campo.closest('.category-card')?.dataset.category;
+  if (categoria) trocarCategoria(categoria);
+  campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  campo.focus({ preventScroll: true });
+}
+
 async function validarChecklistCompleto() {
   const codigoVeiculo = numeroVeiculo.value.trim().toUpperCase();
   const veiculo = veiculos[codigoVeiculo];
@@ -1099,6 +1142,7 @@ async function validarChecklistCompleto() {
     }
     mostrarErro(erroFinal, 'Preencha os dados do veículo, informe todos os pneus, selecione o nível de óleo, conclua os itens e informe o operador.');
     resultadoFinal.classList.remove('show');
+    levarAoPrimeiroCampoPendente({ veiculoValido, camposPneu, oleoSelecionado });
     return false;
   }
 
@@ -1183,6 +1227,16 @@ cadastroVeiculoForm.addEventListener('submit', async (evento) => {
   const placa = document.getElementById('novaPlacaVeiculo').value.trim().toUpperCase();
   const pressaoMin = Number(document.getElementById('novaPressaoMin').value);
   const pressaoMax = Number(document.getElementById('novaPressaoMax').value);
+  const veiculoDuplicado = Object.values(veiculos).some((veiculo) =>
+    String(veiculo.id) !== String(veiculoEditandoId) && (
+      veiculo.codigo.trim().toUpperCase() === codigo || veiculo.placa.trim().toUpperCase() === placa
+    )
+  );
+  if (veiculoDuplicado) {
+    erroCadastroVeiculo.textContent = 'Veículo já cadastrado.';
+    erroCadastroVeiculo.classList.add('show');
+    return;
+  }
   if (!Number.isFinite(pressaoMin) || !Number.isFinite(pressaoMax) || pressaoMin >= pressaoMax) {
     erroCadastroVeiculo.textContent = 'A pressão máxima precisa ser maior que a pressão mínima.';
     erroCadastroVeiculo.classList.add('show');
@@ -1202,7 +1256,9 @@ cadastroVeiculoForm.addEventListener('submit', async (evento) => {
     if (error) throw error;
     await carregarVeiculos();
   } catch (error) {
-    erroCadastroVeiculo.textContent = error.message || 'Não foi possível cadastrar o veículo.';
+    erroCadastroVeiculo.textContent = error.code === '23505'
+      ? 'Veículo já cadastrado.'
+      : error.message || 'Não foi possível cadastrar o veículo.';
     erroCadastroVeiculo.classList.add('show');
     return;
   }
@@ -1314,7 +1370,7 @@ btnSalvar.addEventListener('click', () => {
 });
 
 btnFinalizar.addEventListener('click', validarChecklistCompleto);
-[filtroCategoriaRelatorio, filtroVeiculoRelatorio, filtroItemRelatorio].forEach((filtro) => {
+[filtroCategoriaRelatorio, filtroVeiculoRelatorio, filtroItemRelatorio, filtroDataRelatorio].forEach((filtro) => {
   filtro.addEventListener('change', renderizarVisaoRelatorio);
 });
 relatorioItensBody.addEventListener('click', (evento) => {

@@ -339,7 +339,7 @@
               <tr>
                 <th>Veículo</th>
                 <th>Operador</th>
-                <th>Data</th>
+                <th>Data do checklist</th>
                 <th>Status</th>
                 <th>Circulação</th>
                 <th>Correção</th>
@@ -368,6 +368,10 @@
                   </select>
                 </div>
                 <div>
+                  <label for="filtroDataRelatorio">Data</label>
+                  <input id="filtroDataRelatorio" type="date" />
+                </div>
+                <div>
                 <label for="filtroCategoriaRelatorio">Categoria</label>
                 <select id="filtroCategoriaRelatorio">
                   <option value="todos">Todas as categorias</option>
@@ -387,6 +391,7 @@
                 <thead>
                   <tr>
                     <th>Veículo</th>
+                    <th>Data do checklist</th>
                     <th>Categoria</th>
                     <th>Item inspecionado</th>
                     <th>Status do item</th>
@@ -403,7 +408,8 @@
           </div>
 
           <div style="margin-top: 24px;">
-            <h3 style="margin-bottom: 12px; color: var(--primary-dark);">Veículos com irregularidades</h3>
+            <h3 style="margin-bottom: 12px; color: var(--primary-dark);">Resumo do que está irregular</h3>
+            <p id="resumoIrregularidadesContagem" class="muted-copy" aria-live="polite"></p>
             <div id="listaIrregularidades" class="issue-list"></div>
           </div>
         </section>

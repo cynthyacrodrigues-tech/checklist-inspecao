@@ -807,7 +807,7 @@ th {
 
 .report-filters {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: end;
   gap: 12px;
 }
@@ -861,11 +861,18 @@ th {
   padding: 38px;
 }
 
-#loginForm input[type="email"],
-#loginForm input[type="password"] {
+#loginUsuario,
+#loginSenha,
+#cadastroEmail,
+#cadastroSenha {
   display: block;
   width: 100%;
   min-height: 46px;
+  padding: 12px 14px;
+  border: 1px solid #cbdadc;
+  border-radius: 11px;
+  background: #fff;
+  font: inherit;
 }
 
 .login-screen h1,
